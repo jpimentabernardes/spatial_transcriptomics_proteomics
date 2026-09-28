@@ -1,0 +1,11 @@
+slide_id,core_row,core_col,core_id,patient_id,organ,tissue_type,diagnosis,location,include,notes
+TMA_ORGAN,A,1,ORG_A1,P01,colon,normal,none,proximal,TRUE,EXAMPLE ROW - replace with your TMA map
+TMA_ORGAN,A,2,ORG_A2,P01,colon,normal,none,distal,TRUE,
+TMA_ORGAN,A,3,ORG_A3,P02,small_intestine,normal,none,ileum,TRUE,
+TMA_ORGAN,B,1,ORG_B1,P03,lung,normal,none,peripheral,TRUE,
+TMA_ORGAN,B,2,ORG_B2,P04,liver,normal,none,,TRUE,
+TMA_ORGAN,B,3,ORG_B3,P05,tonsil,normal,none,,TRUE,lymphoid positive control
+TMA_TUMOR,A,1,TUM_A1,P11,colon,tumor,adenocarcinoma,tumor_center,TRUE,
+TMA_TUMOR,A,2,TUM_A2,P11,colon,tumor,adenocarcinoma,invasive_margin,TRUE,
+TMA_TUMOR,A,3,TUM_A3,P12,lung,tumor,adenocarcinoma,tumor_center,TRUE,
+TMA_TUMOR,B,1,TUM_B1,P13,melanoma,tumor,melanoma,tumor_center,TRUE,

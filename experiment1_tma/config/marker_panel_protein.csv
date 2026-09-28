@@ -1,0 +1,16 @@
+level,parent,cell_type,markers
+1,,Epithelial,PanCK;EpCAM;E-Cadherin
+1,,Immune,CD45
+1,,Fibroblast,Vimentin;PDGFRa;Collagen1
+1,,Endothelial,CD31
+1,,Smooth_muscle_pericyte,aSMA;Desmin
+2,Immune,T_cell,CD3
+2,Immune,CD4_T,CD4
+2,Immune,CD8_T,CD8
+2,Immune,Treg,FOXP3
+2,Immune,B_cell,CD20;CD19
+2,Immune,Plasma_cell,CD138
+2,Immune,Macrophage,CD68;CD163
+2,Immune,cDC,CD11c
+2,Immune,Neutrophil,MPO;CD66b
+2,Epithelial,Proliferating_epithelium,Ki67

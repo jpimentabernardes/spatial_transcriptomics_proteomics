@@ -1,0 +1,21 @@
+# Segmentation (03a, 06a) + registration (07). GPU node recommended for cellpose.
+#   conda env create -f env/py_imaging.yml && conda activate exp1-imaging
+name: exp1-imaging
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - numpy
+  - pandas
+  - scipy
+  - pyarrow
+  - scikit-image
+  - matplotlib
+  - tifffile>=2025.5  # region reads of image pyramids through tifffile's zarr store
+  - imagecodecs
+  - zarr>=3
+  - simpleitk
+  - geopandas         # reading segger boundary GeoParquet (03b)
+  - pip
+  - pip:
+      - cellpose      # v4 (Cellpose-SAM) or v3 both supported by 03a/06a

@@ -1,5 +1,11 @@
 # Spatial Multi-Omics Class (MALDI + Xenium + SpaMTP)
 
+> **New:** `experiment1_tma/` holds the research pipeline for Experiment 1:
+> multi-organ and multi-tumour TMAs with Xenium, CellScape spatial proteomics on the consecutive
+> section, and H&E. It covers QC, segmentation benchmark (10x / cellpose / segger), probe-based
+> annotation, Aim 1/2 analyses, registration (GEASO / Spateo) and RNA↔protein integration.
+> See `experiment1_tma/README.md`. The class material below is unchanged.
+
 Teaching repo for a 3-part practical:
 
 1. `scripts/01_spatial_metabolomics_cardinal.R` — MALDI imaging MS with **Cardinal** (+ SpaMTP wrappers)

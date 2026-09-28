@@ -1,0 +1,3 @@
+slide_id,tma_type,xenium_dir,panel,row_flip,col_flip,cellscape_slide_id,cellscape_cells,cellscape_image,cellscape_pixel_size_um,cs_row_flip,cs_col_flip,he_image,he_pixel_size_um,notes
+TMA_ORGAN,multi_organ,data/xenium/output-XETG00000__0000001__TMA_ORGAN__20261001__000000,colon+custom,FALSE,FALSE,CS_TMA_ORGAN,data/cellscape/CS_TMA_ORGAN/cells.csv,data/cellscape/CS_TMA_ORGAN/image.ome.tif,0.325,FALSE,FALSE,data/he/TMA_ORGAN_HE.ome.tif,0.2738,REPLACE with real paths
+TMA_TUMOR,multi_tumor,data/xenium/output-XETG00000__0000002__TMA_TUMOR__20261001__000000,colon+custom,FALSE,FALSE,CS_TMA_TUMOR,data/cellscape/CS_TMA_TUMOR/cells.csv,data/cellscape/CS_TMA_TUMOR/image.ome.tif,0.325,FALSE,FALSE,,,H&E not yet available

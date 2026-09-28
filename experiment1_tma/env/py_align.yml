@@ -1,0 +1,27 @@
+# Optional non-rigid refinement (07b). Spateo and GEASO pin different Python
+# versions -- keep them in separate environments.
+#
+# Spateo:
+#   conda env create -f env/py_align.yml && conda activate exp1-spateo
+#
+# GEASO (python 3.9, torch + dgl, used from a git clone):
+#   conda create -n exp1-geaso python=3.9 && conda activate exp1-geaso
+#   pip install torch dgl scanpy anndata scipy pandas scikit-learn tqdm
+#   git clone https://github.com/xkmaxidian/GEASO ~/GEASO
+#   python 07b_nonrigid_refine.py --method geaso --geaso-repo ~/GEASO ...
+#
+# segger (03b) has its own pixi environment -- see 03b_segment_segger.sh.
+name: exp1-spateo
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - numpy
+  - pandas
+  - scipy
+  - pyarrow
+  - tifffile>=2025.5
+  - zarr>=3
+  - pip
+  - pip:
+      - spateo-release
