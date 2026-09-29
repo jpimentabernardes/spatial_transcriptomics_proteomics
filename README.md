@@ -5,6 +5,10 @@
 > section, and H&E. It covers QC, segmentation benchmark (10x / cellpose / segger), probe-based
 > annotation, Aim 1/2 analyses, registration (GEASO / Spateo) and RNA↔protein integration.
 > See `experiment1_tma/README.md`. The class material below is unchanged.
+>
+> **New:** `tma_toolkit/` is a Python package for large TMAs (e.g. 200 cores). It covers the
+> core-metadata sheet, automatic dearraying, selecting and saving sets of cores, and
+> core/group comparisons on AnnData. See `tma_toolkit/README.md`.
 
 Teaching repo for a 3-part practical:
 
