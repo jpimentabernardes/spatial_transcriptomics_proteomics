@@ -32,9 +32,41 @@ Xenium outs ─► 01 object + QC ─► 02 TMA dearray + metadata ─┬─► 
                                      ├─► 03a cellpose ─┐     │                        │
                                      ├─► 03b segger  ──┴─► 03c benchmark              │
                                      │     (choose SEGMENTATION, re-run 01–02)        │
-CellScape ─► (06a segment) ─► 06 protein prep + dearray ─► 07 register ─► (07b non-rigid) ─► 08 RNA↔protein
-H&E ───────────────────────────────────────────────► 07 --mode he ─► QuPath regions ─► 09 regions → cells
+CellScape ─► (06a segment) ─► 06 protein prep + dearray ─► 07 register via H&E ─► (07b non-rigid) ─► 08 RNA↔protein
+H&E (Xenium slide) ────────────────────────────────────────────┘      │  (also: QuPath regions ─► 09 regions → cells)
+H&E (CellScape slide) ─────────────────────────────────────────┘
 ```
+
+### Registration through the two H&Es
+
+Both slides get an H&E after their run: the Xenium slide (post-Xenium H&E) and the CellScape
+slide (CellScape imaging is non-destructive). `07_register_via_he.py` chains three alignments:
+
+```
+CellScape cells ──B──► H&E (CellScape slide) ──D──► H&E (Xenium slide) ──A──► Xenium µm
+                 same section                 consecutive                same section
+```
+
+| | From → to | Section | Contrast used | Accuracy expected |
+|---|---|---|---|---|
+| **A** | H&E (Xenium) → Xenium DAPI | same | haematoxylin ↔ DAPI (both mark nuclei) | near-exact |
+| **B** | H&E (CellScape) → CellScape DAPI | same | haematoxylin ↔ DAPI | near-exact |
+| **D** | H&E (CellScape) → H&E (Xenium) | consecutive | H&E ↔ H&E: same stain, same contrast | limited by true tissue differences |
+
+Why this route: the only hard step (D) compares two images that look alike, and it uses tissue
+architecture, not cell annotations. The direct route (`07_register_modalities.py`) needs matching
+lineage labels on both sides, so annotation errors turn into alignment errors. Each step is a
+global affine then a rigid correction per core. For A and B the global step tries all 8
+rotations/mirrors, because scanners often store H&E rotated or flipped. D starts from the matched
+core centres. D is refined on blurred images (12 µm), because consecutive sections share tissue
+architecture but not individual nuclei. `--polish-with-labels` adds a small label-aware
+correction at the end, and keeps it only where it helps.
+
+On synthetic data (CellScape section with 3° rotation, 8 µm per-core shifts and 4 µm cell
+jitter; both H&Es stored rotated, one mirrored), both orientations were found automatically.
+Median error to the true cell position was 9.2 µm with global transforms only, 5.2 µm after
+per-core refinement, and 4.7 µm with the label polish, which is the jitter floor. The direct
+route reached 4.8 µm on the same data.
 
 | # | Script | Lang | What it does |
 |---|---|---|---|
@@ -47,7 +79,8 @@ H&E ─────────────────────────�
 | 05 | `05_tma_first_insights.R` | R | Aim 1 and Aim 2 analyses (see table above) plus cellular niches. |
 | 06a | `06a_cellscape_segment.py` | Py | Only if you have CellScape images without a per-cell export: cellpose + per-channel mean intensities. |
 | 06 | `06_cellscape_prep.R` | R | CellScape → Seurat (`PROT` assay, arcsinh). QC, dearray with the same TMA map, annotation with the **same lineage names** as the RNA. |
-| 07 | `07_register_modalities.py` | Py | CellScape → Xenium: global affine from **matched core centres**, then per-core refinement (label-aware ICP, or DAPI↔DAPI mutual information). H&E → Xenium from landmarks or a Xenium Explorer alignment matrix. |
+| 07 | `07_register_via_he.py` | Py | **Preferred.** CellScape → Xenium through the two H&Es (B → D → A above), per core. Also writes the H&E → Xenium transform used by 09. |
+| 07 (alt.) | `07_register_modalities.py` | Py | Fallback without H&E: global affine from matched core centres, then per-core label-aware ICP or DAPI↔DAPI. Same output file, so it can also be used as a cross-check. |
 | 07b | `07b_nonrigid_refine.py` | Py | Optional non-rigid refinement per core with **GEASO** or **Spateo**, using a shared representation (neighbourhood lineage composition + paired markers). Rejected automatically if it doesn't help. |
 | 08 | `08_integrate_rna_protein.R` | R | RNA↔protein at three levels: cell (nearest cell / neighbourhood protein), 50 µm bins, and core × cell type (no registration needed). Also cross-validates Aim 1. |
 | 09 | `09_he_regions.R` | R | Pathology regions drawn on H&E (QuPath GeoJSON) → transformed → assigned to cells → composition and immune targets per region. |
@@ -75,9 +108,10 @@ H&E ─────────────────────────�
   matched cores (free landmarks in a TMA), then per-core rigid refinement, then optional
   non-rigid refinement. A refinement is kept only if it improves cross-modal agreement
   within shift/rotation limits.
-- **H&E is best done on the Xenium slide after the run.** That makes it the same section, so
-  a single affine is essentially exact and H&E regions map onto cells directly (`09`). Both
-  omics layers already share DAPI, so DAPI (not H&E) is the anchor for RNA↔protein.
+- **H&E on both slides after their runs.** Each H&E is then on the same section as its omics
+  layer (near-exact alignment to that layer's DAPI). The two H&Es give a same-stain bridge
+  between the consecutive sections. H&E regions from the Xenium-slide H&E also map onto cells
+  directly (`09`).
 
 ## Getting started
 
@@ -99,9 +133,12 @@ H&E ─────────────────────────�
    Rscript 04_annotation_probe_based.R                                # edit annotation/*.csv, re-run
    Rscript 05_tma_first_insights.R
    Rscript 06_cellscape_prep.R                                        # CHECK figures/06_dearray_*.png
-   python 07_register_modalities.py --project-dir $EXP1_PROJECT_DIR --slide-id <slide> --mode cellscape
+   python 07_register_via_he.py --project-dir $EXP1_PROJECT_DIR --slide-id <slide> \
+       --xenium-dir <xenium outs> --he-xenium <xenium-slide H&E> \
+       --cellscape-image <CellScape OME-TIFF> --cellscape-dapi DAPI --he-cellscape <CellScape-slide H&E>
+                                                                      # CHECK figures/07_via_he_<slide>_{A,B,D}.png
    Rscript 08_integrate_rna_protein.R
-   python 07_register_modalities.py ... --mode he ...; (QuPath annotations); Rscript 09_he_regions.R
+   (QuPath annotations on the Xenium-slide H&E) ; Rscript 09_he_regions.R
    ```
 
 ## Things to verify with the real data (flagged in the scripts as ADAPT / CHECK)
@@ -111,8 +148,15 @@ H&E ─────────────────────────�
 - **Species / gene symbols.** The marker files use human symbols.
 - **QC thresholds** (`MIN_COUNTS`, areas) are set for a few-hundred-gene panel. Check the
   01/02 figures before accepting them.
-- **Xenium Explorer alignment matrix direction** (H&E mode of `07`). The script tests both
-  directions and prints which one it used. Confirm on `figures/09_he_regions_check_*.png`.
+- **H&E images for `07_register_via_he.py`.** Export them as pyramidal OME-TIFF (e.g. from
+  QuPath or `bfconvert`) with the pixel size in the metadata. A single-resolution scan works,
+  but is slow to read. Look at the three overlay figures (`07_via_he_<slide>_A/B/D.png`). A and
+  B should be near-perfect. If D fails for a core (e.g. a folded or torn core in one section),
+  it keeps the global transform and is listed in `registration_qc_via_he_<slide>.csv`. If an
+  automatic global alignment is wrong, force it with `--landmarks-a/-b/-d`.
+- **Xenium Explorer alignment matrix direction** (only for `07_register_modalities.py --mode he`).
+  The script tests both directions and prints which one it used. Confirm on
+  `figures/09_he_regions_check_*.png`.
 - **segger / GEASO / Spateo versions.** Commands were checked against the current
   repositories (segger `segger segment`/`segger export`; GEASO `coarse_to_fine_alignment`;
   Spateo `st.align.morpho_align`), but these tools change fast. Run `--help` once on the

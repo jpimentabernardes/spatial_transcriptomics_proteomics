@@ -12,7 +12,8 @@
 ## it like CellScape (per-core refinement in 07).
 ##
 ## Workflow:
-##   1. Register: python 07_register_modalities.py --mode he ...
+##   1. Register: python 07_register_via_he.py ...  (step A of the H&E chain), or
+##      python 07_register_modalities.py --mode he ... when there is no CellScape H&E
 ##        -> data/registration/transforms_he_<slide>.json (H&E px -> Xenium um)
 ##   2. Annotate regions on the H&E in QuPath (classes e.g. Tumor, Stroma,
 ##      Immune_aggregate, Normal_epithelium, Necrosis, Muscle). Export:

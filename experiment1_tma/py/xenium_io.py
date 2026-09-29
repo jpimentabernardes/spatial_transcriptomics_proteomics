@@ -142,22 +142,36 @@ class PyramidImage:
         self.downsample = full_yx[0] / self.shape[yx[0]]
         self.height, self.width = self.shape[yx[0]], self.shape[yx[1]]
 
-    def read(self, y0: int, y1: int, x0: int, x1: int) -> np.ndarray:
+    def read(self, y0: int, y1: int, x0: int, x1: int, step: int = 1) -> np.ndarray:
+        """Window of this level. Channels-last for multi-channel reads (channel=None).
+        `step` > 1 subsamples (for single-resolution scans with no coarser level)."""
         y0, x0 = max(0, int(y0)), max(0, int(x0))
         y1, x1 = min(self.height, int(y1)), min(self.width, int(x1))
+        step = max(1, int(step))
         idx = []
         for ax in self.axes:
             if ax == "Y":
-                idx.append(slice(y0, y1))
+                idx.append(slice(y0, y1, step))
             elif ax == "X":
-                idx.append(slice(x0, x1))
+                idx.append(slice(x0, x1, step))
             elif ax == "C":
-                idx.append(self.channel)
+                idx.append(self.channel if self.channel is not None else slice(None))
             elif ax in ("S",):          # RGB samples: keep all
                 idx.append(slice(None))
             else:                        # Z, T, ... take first plane
                 idx.append(0)
-        return np.asarray(self._z[tuple(idx)])
+        a = np.asarray(self._z[tuple(idx)])
+        kept = [ax for ax, i in zip(self.axes, idx) if not isinstance(i, int)]
+        if "C" in kept and kept.index("C") < kept.index("Y"):   # planar RGB / all channels -> channels last
+            a = np.moveaxis(a, kept.index("C"), -1)
+        return a
+
+    def pixel_size_um(self):
+        """PhysicalSizeX from OME metadata (level 0), or None."""
+        if not self.ome_metadata:
+            return None
+        m = re.search(r'PhysicalSizeX="([0-9.eE+-]+)"', self.ome_metadata)
+        return float(m.group(1)) if m else None
 
     def read_all(self) -> np.ndarray:
         return self.read(0, self.height, 0, self.width)

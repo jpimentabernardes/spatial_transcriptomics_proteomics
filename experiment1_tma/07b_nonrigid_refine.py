@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """07b_nonrigid_refine.py -- optional non-rigid refinement (GEASO or Spateo),
-per TMA core, on top of the rigid/affine result of 07_register_modalities.py.
+per TMA core, on top of the rigid/affine result of 07_register_via_he.py or
+07_register_modalities.py (both write cellscape_aligned_<slide>.csv.gz).
 
 When to use: only if the 07 QC (registration_qc_cellscape_<slide>.csv and the
 overlay figures) shows cores whose SHAPE differs between sections (folds,

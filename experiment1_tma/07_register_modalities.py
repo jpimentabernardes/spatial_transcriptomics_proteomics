@@ -2,6 +2,10 @@
 """07_register_modalities.py -- bring CellScape (consecutive section) and H&E
 into the Xenium coordinate frame (microns, Xenium = fixed reference).
 
+PREFERRED ROUTE when both slides have an H&E: 07_register_via_he.py
+(CellScape -> its H&E -> Xenium H&E -> Xenium). Use this script when an H&E is
+missing, or to cross-check: both write the same cellscape_aligned_<slide>.csv.gz.
+
 Strategy for TMAs (coarse -> fine, every step checked):
 
  1. GLOBAL affine from matched TMA cores. Both modalities were dearrayed with
