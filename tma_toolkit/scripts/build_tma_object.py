@@ -41,7 +41,7 @@ def truthy(v) -> bool:
     return str(v).strip().lower() in ("true", "1", "yes")
 
 
-def parse_args():
+def parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--slides", required=True)
     p.add_argument("--core-metadata", required=True)
@@ -61,11 +61,11 @@ def parse_args():
     p.add_argument("--max-area", type=float, default=600.0)
     p.add_argument("--max-ctrl-frac", type=float, default=0.05)
     p.add_argument("--keep-failing", action="store_true", help="keep QC-failing cells (flagged only)")
-    return p.parse_args()
+    return p.parse_args(argv)
 
 
-def main():
-    a = parse_args()
+def main(argv=None):
+    a = parse_args(argv)
     fig_dir = a.figures or os.path.join(a.project_dir, "figures")
     tab_dir = a.tables or os.path.join(a.project_dir, "tables")
     os.makedirs(fig_dir, exist_ok=True); os.makedirs(tab_dir, exist_ok=True)
