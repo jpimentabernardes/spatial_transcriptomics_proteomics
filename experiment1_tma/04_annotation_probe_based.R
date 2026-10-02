@@ -168,7 +168,7 @@ save_fig(p_gal, "04_spatial_gallery_celltype", width = 16, height = 12)
 ##    centroids, labels and log-normalised expression of the genes that have
 ##    a protein partner (config/rna_protein_pairs.csv).
 ## -----------------------------------------------------------------------
-pairs <- utils::read.csv(RNA_PROT_PAIRS_CSV, stringsAsFactors = FALSE)
+pairs <- read_config_csv(RNA_PROT_PAIRS_CSV, stringsAsFactors = FALSE)
 pairs$gene <- as_seurat_features(pairs$gene)
 pair_genes <- intersect(pairs$gene, panel_genes)
 expr <- GetAssayData(xen, assay = "Xenium", layer = "data")[pair_genes, , drop = FALSE]

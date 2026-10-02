@@ -44,7 +44,7 @@ counts <- GetAssayData(xen, assay = "Xenium", layer = "counts")
 meta <- xen[[]]
 genes <- rownames(counts)
 
-probes <- utils::read.csv(PROBE_EXPECT_CSV, stringsAsFactors = FALSE)
+probes <- read_config_csv(PROBE_EXPECT_CSV, stringsAsFactors = FALSE)
 probes$gene <- as_seurat_features(probes$gene)
 missing_probes <- setdiff(probes$gene, genes)
 if (length(missing_probes) > 0) message("In probe_expectations.csv but not on panel: ", paste(missing_probes, collapse = ", "))

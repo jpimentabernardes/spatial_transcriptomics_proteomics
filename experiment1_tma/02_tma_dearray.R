@@ -38,7 +38,7 @@ meta <- xen[[]]
 
 overrides_path <- file.path(CONFIG_DIR, "core_overrides.csv")
 overrides <- if (file.exists(overrides_path)) {
-  utils::read.csv(overrides_path, stringsAsFactors = FALSE, colClasses = "character")
+  read_config_csv(overrides_path, stringsAsFactors = FALSE, colClasses = "character")
 } else NULL
 
 meta$core_id <- NA_character_

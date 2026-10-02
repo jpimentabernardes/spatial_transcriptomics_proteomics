@@ -137,7 +137,7 @@ if (nrow(m) > 0) {
     labs(y = "mean fraction (over cores)", title = "Cell-type composition per H&E region, by organ")
   save_fig(p_comp, "09_composition_by_he_region", width = 16, height = 10)
 
-  probes <- utils::read.csv(PROBE_EXPECT_CSV, stringsAsFactors = FALSE)
+  probes <- read_config_csv(PROBE_EXPECT_CSV, stringsAsFactors = FALSE)
   probes$gene <- as_seurat_features(probes$gene)
   targets <- intersect(probes$gene[probes$category == "immune_target"], rownames(xen[["Xenium"]]))
   if (length(targets) > 0) {

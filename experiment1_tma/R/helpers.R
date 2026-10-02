@@ -40,8 +40,20 @@ obj_path <- function(stage, segmentation = SEGMENTATION) {
 ## -----------------------------------------------------------------------
 ## Config readers
 ## -----------------------------------------------------------------------
+## read.csv() for sheets you edit by hand. Excel and most editors save the last
+## row without a trailing newline; R then warns "incomplete final line", which is
+## harmless (the row is read) -- so that one warning is muffled here.
+read_config_csv <- function(path, ...) {
+  withCallingHandlers(
+    utils::read.csv(path, ...),
+    warning = function(w) {
+      if (grepl("incomplete final line", conditionMessage(w))) invokeRestart("muffleWarning")
+    }
+  )
+}
+
 read_slides <- function(path = SLIDES_CSV) {
-  s <- utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE)
+  s <- read_config_csv(path, stringsAsFactors = FALSE, check.names = FALSE)
   stopifnot("slides.csv needs slide_id and xenium_dir" =
               all(c("slide_id", "xenium_dir") %in% colnames(s)))
   bad <- s$slide_id[s$slide_id != make.names(s$slide_id)]
@@ -56,7 +68,7 @@ read_slides <- function(path = SLIDES_CSV) {
 }
 
 read_tma_map <- function(path = TMA_MAP_CSV) {
-  m <- utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE)
+  m <- read_config_csv(path, stringsAsFactors = FALSE, check.names = FALSE)
   need <- c("slide_id", "core_row", "core_col", "core_id", "patient_id", "organ")
   stopifnot("tma_map.csv is missing required columns" = all(need %in% colnames(m)))
   for (opt in c("tissue_type", "diagnosis", "location")) if (!opt %in% colnames(m)) m[[opt]] <- NA_character_
@@ -83,7 +95,7 @@ fov_key <- function(id) paste0("fov", tolower(gsub("[^[:alnum:]]", "", id)), "_"
 
 ## Returns list(level1 = named list, level2 = list(parent -> named list), mecr = named list)
 read_marker_panel <- function(path) {
-  p <- utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE)
+  p <- read_config_csv(path, stringsAsFactors = FALSE, check.names = FALSE)
   to_list <- function(df) stats::setNames(lapply(df$markers, split_markers), df$cell_type)
   out <- list(level1 = to_list(p[p$level == 1, ]), level2 = list(), mecr = list())
   for (par in unique(p$parent[p$level == 2])) {
@@ -362,7 +374,7 @@ sort_levels <- function(v) {
 read_core_selections <- function(sel_dir) {
   files <- list.files(sel_dir, pattern = "\\.csv$", full.names = TRUE)
   lapply(stats::setNames(files, tools::file_path_sans_ext(basename(files))), function(f) {
-    d <- utils::read.csv(f, comment.char = "#", check.names = FALSE)
+    d <- read_config_csv(f, comment.char = "#", check.names = FALSE)
     xcol <- grep("^x$", colnames(d), ignore.case = TRUE, value = TRUE)[1]
     ycol <- grep("^y$", colnames(d), ignore.case = TRUE, value = TRUE)[1]
     stopifnot("Selection CSV needs X and Y columns" = !is.na(xcol) && !is.na(ycol))
@@ -435,7 +447,7 @@ resolve_cluster_map <- function(clusters, score_df, map_path, top_markers = NULL
   template$top_markers[is.na(template$top_markers)] <- ""
 
   if (file.exists(map_path)) {
-    existing <- utils::read.csv(map_path, stringsAsFactors = FALSE, colClasses = c(cluster = "character"))
+    existing <- read_config_csv(map_path, stringsAsFactors = FALSE, colClasses = c(cluster = "character"))
     if (setequal(existing$cluster, template$cluster)) {
       if (!any(as.logical(existing$reviewed) %in% TRUE)) {
         message("Using UNREVIEWED labels from ", map_path, " -- edit `label`, set reviewed=TRUE.")

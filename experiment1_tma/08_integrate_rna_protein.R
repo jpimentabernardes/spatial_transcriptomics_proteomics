@@ -36,7 +36,7 @@ source("R/helpers.R")
 xen_path <- if (file.exists(obj_path("insights"))) obj_path("insights") else obj_path("annotated")
 xen <- readRDS(xen_path)
 cs <- readRDS(file.path(PROCESSED_DIR, "cellscape_annotated.rds"))
-pairs <- utils::read.csv(RNA_PROT_PAIRS_CSV, stringsAsFactors = FALSE)
+pairs <- read_config_csv(RNA_PROT_PAIRS_CSV, stringsAsFactors = FALSE)
 pairs$gene <- as_seurat_features(pairs$gene)
 pairs$protein <- as_seurat_features(pairs$protein)
 pairs <- pairs[pairs$gene %in% rownames(xen[["Xenium"]]) & pairs$protein %in% rownames(cs[["PROT"]]), ]
