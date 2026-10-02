@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "py"
 from xenium_io import Transcripts, read_features, write_common_format  # noqa: E402
 
 
-def parse_args():
+def parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--slide-id", required=True)
     p.add_argument("--xenium-dir", required=True)
@@ -35,7 +35,7 @@ def parse_args():
     p.add_argument("--out-dir", required=True)
     p.add_argument("--min-transcripts", type=int, default=1)
     p.add_argument("--min-qv", type=float, default=20.0)
-    return p.parse_args()
+    return p.parse_args(argv)
 
 
 def core_of(x, y, cores):
@@ -76,8 +76,8 @@ def find_segger_parquet(path):
         f"written by 03b_segment_segger.sh (segger must have run first).")
 
 
-def main():
-    a = parse_args()
+def main(argv=None):
+    a = parse_args(argv)
     a.segger_parquet = find_segger_parquet(a.segger_parquet)
     features = read_features(a.xenium_dir)
     name_to_idx = {n: i for i, n in enumerate(features["name"])}

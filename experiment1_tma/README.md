@@ -74,7 +74,7 @@ route reached 4.8 µm on the same data.
 | 02a | `02a_make_pseudo_tma.R` | R | **Testing only.** Punches virtual TMA cores out of whole sections (e.g. Swiss rolls), with an inner/middle/outer location per core, so the TMA pipeline can be tested before real TMAs exist. Then run 02 as usual. |
 | 02 | `02_tma_dearray.R` | R | Finds cores (DBSCAN, or Xenium Explorer / polygon selections) and matches them to `tma_map.csv`. Adds patient/organ/location, core QC, filtering. |
 | 03a | `03a_segment_cellpose.py` | Py | Runs cellpose per core (nuclei + expansion, or DAPI + boundary stain) and re-assigns transcripts. |
-| 03b | `03b_segment_segger.sh` + `03b_segger_to_common.py` | sh/Py | segger (GNN, transcript-to-cell assignment), converted to the same format. |
+| 03b | `03b_segment_segger.py` (or `.sh`) + `03b_segger_to_common.py` | Py | segger (GNN, transcript-to-cell assignment), run through its pixi environment and converted to the same format. |
 | 03c | `03c_segmentation_benchmark.R` | R | 10x vs cellpose vs segger on the same cores: transcripts assigned, counts per cell, **MECR** (contamination), per organ. |
 | 04 | `04_annotation_probe_based.R` | R | Hierarchical, probe-based, semi-manual annotation (lineage → immune/stromal/epithelial subsets). Cluster→label decisions go in editable CSVs. |
 | 05 | `05_tma_first_insights.R` | R | Aim 1 and Aim 2 analyses (see table above) plus cellular niches. |
@@ -117,7 +117,7 @@ route reached 4.8 µm on the same data.
 ## Getting started
 
 1. Environments: `Rscript env/install_r.R`; `conda env create -f env/py_imaging.yml`
-   (cellpose, registration); segger via pixi (see `03b_segment_segger.sh`); Spateo/GEASO via
+   (cellpose, registration); segger via pixi (see `03b_segment_segger.py`); Spateo/GEASO via
    `env/py_align.yml`.
 2. Fill in `config/slides.csv`, `config/tma_map.csv` (one row per core: patient, organ,
    tissue type, diagnosis, location) and `config/probe_expectations.csv`. That last file lists
@@ -129,7 +129,7 @@ route reached 4.8 µm on the same data.
    export EXP1_PROJECT_DIR=/work_beegfs/sukmb430/Spatial_TMA
    Rscript 01_xenium_object_prep.R && Rscript 02_tma_dearray.R      # then CHECK figures/02_dearray_*.png
    python 03a_segment_cellpose.py --slide-id ... --cores-csv $EXP1_PROJECT_DIR/tables/02_cores_all.csv ...
-   bash 03b_segment_segger.sh <slide> <xenium_outs> $EXP1_PROJECT_DIR
+   python 03b_segment_segger.py --slide-id <slide> --xenium-dir <xenium_outs> --project-dir $EXP1_PROJECT_DIR --segger-repo <segger clone>
    Rscript 03c_segmentation_benchmark.R                               # choose SEGMENTATION; re-run 01-02
    Rscript 04_annotation_probe_based.R                                # edit annotation/*.csv, re-run
    Rscript 05_tma_first_insights.R
@@ -144,7 +144,8 @@ route reached 4.8 µm on the same data.
 
 ### Python steps as Jupyter notebooks
 
-Every Python step also exists as a notebook in `notebooks/`: 03a, 03b_segger_to_common, 06a, 07,
+Every Python step also exists as a notebook in `notebooks/`: 03a, 03b_segment_segger (runs segger
+through pixi, then converts), 03b_segger_to_common (conversion only), 06a, 07,
 07_register_via_he and 07b. Each notebook has the same code as its script, laid out for
 interactive use:
 

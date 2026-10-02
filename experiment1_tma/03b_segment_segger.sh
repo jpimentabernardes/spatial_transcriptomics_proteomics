@@ -18,6 +18,8 @@
 ## reference for gene-gene correlations (--gene-corr-reference-path) can
 ## help for the custom immune probes.
 ##
+## Python / Jupyter version of this script: 03b_segment_segger.py (notebooks/03b_segment_segger.ipynb).
+##
 ## Usage:  bash 03b_segment_segger.sh <slide_id> <xenium_outs_dir> <project_dir> [segger_repo_dir]
 ## Then :  python 03b_segger_to_common.py ... (run automatically at the end)
 ## =============================================================================
