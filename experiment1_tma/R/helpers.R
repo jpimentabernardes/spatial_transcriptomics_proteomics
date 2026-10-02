@@ -549,3 +549,116 @@ plot_cores_spatial <- function(meta, color_by, cores = NULL, facet = TRUE,
 }
 
 `%||%` <- function(a, b) if (is.null(a)) b else a
+
+## -----------------------------------------------------------------------
+## Zoomed QC inspection: cells (pass / fail) on top of the morphology image
+## -----------------------------------------------------------------------
+
+## First failing QC reason per cell ("pass" if none) -- for colouring.
+qc_reason <- function(meta) {
+  r <- rep("pass", nrow(meta))
+  r[meta$qc_high_control] <- "high control"
+  r[meta$qc_large] <- "too large"
+  r[meta$qc_small] <- "too small"
+  r[meta$qc_low_counts] <- "low counts"
+  factor(r, levels = c("pass", "low counts", "too small", "too large", "high control"))
+}
+QC_REASON_COLORS <- c(`pass` = "#9ec5f4", `low counts` = "#eda100", `too small` = "#e34948",
+                      `too large` = "#eb6834", `high control` = "#e87ba4")
+
+## Windows (square, window_um wide) that contain BOTH passing and failing cells:
+## the slide is cut into a grid and the windows with the most balanced mix
+## (largest min(n_pass, n_fail)) are returned, n_per_slide per slide.
+pick_inspection_windows <- function(meta, window_um = 150, n_per_slide = 3, min_cells = 30) {
+  d <- meta[!is.na(meta$x_um), c("slide_id", "x_um", "y_um", "qc_pass")]
+  d$gx <- floor(d$x_um / window_um)
+  d$gy <- floor(d$y_um / window_um)
+  w <- d |>
+    group_by(slide_id, gx, gy) |>
+    summarise(n = n(), n_pass = sum(qc_pass), n_fail = sum(!qc_pass), .groups = "drop") |>
+    filter(n >= min_cells) |>
+    mutate(score = pmin(n_pass, n_fail)) |>
+    group_by(slide_id) |>
+    slice_max(score, n = n_per_slide, with_ties = FALSE) |>
+    ungroup()
+  data.frame(slide_id = w$slide_id,
+             x0 = w$gx * window_um, y0 = w$gy * window_um,
+             x1 = (w$gx + 1) * window_um, y1 = (w$gy + 1) * window_um,
+             n_cells = w$n, n_pass = w$n_pass, n_fail = w$n_fail)
+}
+
+## Crop the morphology image (and cell / nucleus outlines) for one window via
+## py/crop_region.py. Python does the reading because Xenium OME-TIFFs are tiled,
+## pyramidal and compressed in ways R's TIFF readers do not handle reliably.
+crop_morphology <- function(xenium_dir, x0, y0, x1, y1, tag, image = NULL,
+                            python = PYTHON_BIN, out_dir = file.path(PROCESSED_DIR, "inspection")) {
+  dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+  prefix <- file.path(out_dir, tag)
+  args <- c(file.path(CODE_DIR, "py", "crop_region.py"), "--xenium-dir", shQuote(xenium_dir),
+            "--x0", x0, "--y0", y0, "--x1", x1, "--y1", y1, "--out-prefix", shQuote(prefix))
+  if (!is.null(image)) args <- c(args, "--image", shQuote(image))
+  out <- system2(python, args, stdout = TRUE, stderr = TRUE)
+  status <- attr(out, "status")
+  if (!is.null(status) && status != 0) {
+    stop("crop_region.py failed (set PYTHON_BIN in config.R to a Python with tifffile + zarr):\n",
+         paste(utils::tail(out, 10), collapse = "\n"))
+  }
+  read_b <- function(kind) {
+    f <- paste0(prefix, "_", kind, "_boundaries.csv.gz")
+    if (file.exists(f)) utils::read.csv(f, stringsAsFactors = FALSE) else NULL
+  }
+  list(image = tiff::readTIFF(paste0(prefix, "_image.tif"), as.is = TRUE),
+       meta = jsonlite::fromJSON(paste0(prefix, "_meta.json")),
+       cells = read_b("cell"), nuclei = read_b("nucleus"))
+}
+
+## Three panels: where the window is on the slide | morphology alone |
+## morphology + cell outlines (or centroids) coloured by QC result.
+## y is plotted as -y so the image keeps its orientation (y grows downwards).
+plot_inspection <- function(meta_slide, crop, win, title = "", point_size = 1.2) {
+  m <- crop$meta
+  img <- crop$image
+  lim <- stats::quantile(img, c(0.01, 0.997), na.rm = TRUE)
+  g <- pmin(pmax((img - lim[1]) / max(lim[2] - lim[1], 1), 0), 1)^0.6      # contrast stretch
+  ras <- grDevices::as.raster(g)
+  bg <- annotation_raster(ras, xmin = m$x0_um, xmax = m$x1_um, ymin = -m$y1_um, ymax = -m$y0_um)
+  frame <- list(coord_fixed(xlim = c(win$x0, win$x1), ylim = c(-win$y1, -win$y0), expand = FALSE),
+                theme_void(), theme(plot.title = element_text(size = 9)))
+
+  cells <- meta_slide[meta_slide$x_um >= win$x0 - 20 & meta_slide$x_um <= win$x1 + 20 &
+                        meta_slide$y_um >= win$y0 - 20 & meta_slide$y_um <= win$y1 + 20, ]
+  cells$qc <- qc_reason(cells)
+
+  p_img <- ggplot() + bg + frame + ggtitle("morphology (DAPI)")
+
+  p_cells <- ggplot() + bg
+  if (!is.null(crop$nuclei) && nrow(crop$nuclei) > 0) {
+    p_cells <- p_cells + geom_polygon(data = crop$nuclei, aes(vertex_x, -vertex_y, group = cell_id),
+                                      fill = NA, colour = "white", linewidth = 0.15, alpha = 0.6)
+  }
+  if (!is.null(crop$cells) && nrow(crop$cells) > 0) {
+    b <- crop$cells
+    b$qc <- cells$qc[match(b$cell_id, cells$cell_id)]
+    b <- b[!is.na(b$qc), ]
+    p_cells <- p_cells + geom_polygon(data = b, aes(vertex_x, -vertex_y, group = cell_id, colour = qc),
+                                      fill = NA, linewidth = 0.35)
+  }
+  p_cells <- p_cells +
+    geom_point(data = cells, aes(x_um, -y_um, colour = qc), size = point_size) +
+    scale_colour_manual(values = QC_REASON_COLORS, drop = FALSE, name = "cell QC") +
+    frame + ggtitle({
+      inw <- cells$x_um >= win$x0 & cells$x_um <= win$x1 & cells$y_um >= win$y0 & cells$y_um <= win$y1
+      sprintf("cells in window: %d pass, %d fail (outlines = segmentation)",
+              sum(cells$qc[inw] == "pass"), sum(cells$qc[inw] != "pass"))
+    })
+
+  ov <- meta_slide[sample(nrow(meta_slide), min(nrow(meta_slide), 1e5)), ]
+  p_where <- ggplot(ov, aes(x_um, -y_um)) +
+    geom_point(size = 0.05, colour = "grey60", stroke = 0) +
+    annotate("rect", xmin = win$x0, xmax = win$x1, ymin = -win$y1, ymax = -win$y0,
+             fill = NA, colour = "#e34948", linewidth = 0.8) +
+    coord_fixed() + theme_void() + ggtitle("window position")
+
+  (p_where | p_img | p_cells) + plot_layout(widths = c(1, 1.4, 1.4)) +
+    plot_annotation(title = title)
+}

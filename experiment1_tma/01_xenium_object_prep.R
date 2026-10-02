@@ -181,5 +181,43 @@ save_fig(p_pass, "01_qc_fail_spatial_by_slide", width = 8 * nrow(slides), height
 ## detachment) -- keep it flagged in 02 rather than silently letting the
 ## cell filter delete it; for Aim 2 a missing core is a missing sample.
 
+## -----------------------------------------------------------------------
+## 6. Zoomed inspection: QC pass / fail cells on the morphology image
+##    For each window: where it is on the slide | the DAPI image alone | DAPI
+##    with segmentation outlines coloured by QC result. Look for: failing
+##    cells in tissue gaps / folds (debris = correctly removed), large cells
+##    spanning several nuclei (merged segmentation), small cells without a
+##    clear nucleus, or good-looking nuclei that fail only on counts (a
+##    threshold that is too strict for this tissue).
+##    Windows are picked automatically where pass and fail cells mix; set
+##    INSPECT_CENTERS in config.R to look at a specific place instead.
+## -----------------------------------------------------------------------
+if (!requireNamespace("tiff", quietly = TRUE)) {
+  message("Section 6 skipped: install.packages('tiff') to read the image crops.")
+} else {
+  xm <- xen[[]]
+  xm$cell_id <- as.character(xm$cell_id)
+  windows <- if (!is.null(INSPECT_CENTERS)) {
+    h <- INSPECT_WINDOW_UM / 2
+    with(INSPECT_CENTERS, data.frame(slide_id = slide_id, x0 = x - h, y0 = y - h, x1 = x + h, y1 = y + h))
+  } else pick_inspection_windows(xm, INSPECT_WINDOW_UM, INSPECT_N_PER_SLIDE)
+  print(windows)
+  save_table(windows, "01_inspection_windows")
+
+  for (k in seq_len(nrow(windows))) {
+    w <- windows[k, ]
+    sid <- w$slide_id
+    tag <- sprintf("%s_x%d_y%d", sid, round(w$x0), round(w$y0))
+    crop <- tryCatch(
+      crop_morphology(resolve_path(slides$xenium_dir[slides$slide_id == sid]),
+                      w$x0, w$y0, w$x1, w$y1, tag),
+      error = function(e) { message("Window ", tag, ": ", conditionMessage(e)); NULL })
+    if (is.null(crop)) next
+    p_zoom <- plot_inspection(xm[xm$slide_id == sid, ], crop, w,
+                              title = sprintf("%s  x %.0f-%.0f, y %.0f-%.0f um", sid, w$x0, w$x1, w$y0, w$y1))
+    save_fig(p_zoom, paste0("01_qc_zoom_", tag), width = 15, height = 5.5, dpi = 200)
+  }
+}
+
 saveRDS(xen, obj_path("raw"))
 message("Saved -> ", obj_path("raw"))

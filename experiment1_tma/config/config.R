@@ -118,4 +118,16 @@ NN_MAX_DIST_UM   <- 15     # nearest-cell transfer cutoff (serial sections: cell
 NBHD_RADIUS_UM   <- 30     # neighbourhood-averaged protein per Xenium cell
 BIN_SIZE_UM      <- 50     # spatial bins for RNA-protein correlation
 
+## -----------------------------------------------------------------------
+## Zoomed QC inspection (01, section 6)
+## -----------------------------------------------------------------------
+## Python with tifffile + zarr (env/py_imaging.yml), used to crop the morphology
+## image. ADAPT: e.g. "/home/you/miniconda3/envs/exp1-imaging/bin/python"
+PYTHON_BIN          <- Sys.getenv("EXP1_PYTHON", "python3")
+INSPECT_WINDOW_UM   <- 150     # side of each zoom window
+INSPECT_N_PER_SLIDE <- 3       # windows chosen automatically per slide (mix of pass + fail)
+## Your own windows instead (centre in um, as read off 01_qc_fail_spatial_by_slide.png):
+## INSPECT_CENTERS <- data.frame(slide_id = "TMA_ORGAN", x = 5200, y = 3100)
+INSPECT_CENTERS     <- NULL
+
 set.seed(42)
