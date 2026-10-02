@@ -400,6 +400,15 @@ assign_grid <- function(cores, row_levels, col_levels, row_flip = FALSE, col_fli
   cores
 }
 
+## TMA row names: 1 -> A, 26 -> Z, 27 -> AA, ...
+LETTERS_EXT <- function(i) {
+  vapply(i, function(k) {
+    s <- ""
+    while (k > 0) { s <- paste0(LETTERS[(k - 1) %% 26 + 1], s); k <- (k - 1) %/% 26 }
+    s
+  }, character(1))
+}
+
 sort_levels <- function(v) {
   v <- unique(as.character(v))
   num <- suppressWarnings(as.numeric(v))

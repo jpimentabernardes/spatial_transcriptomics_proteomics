@@ -78,6 +78,15 @@ MIN_CELLS_PER_CORE   <- 200   # smaller DBSCAN clusters = debris / tissue fragme
 CORE_MERGE_DIST_UM   <- 400   # fragments of one torn core closer than this get merged
 CORE_MAX_DIST_FACTOR <- 1.25  # assign cells up to 1.25 x core radius from centre
 
+## Virtual TMA for TESTING on whole sections (02a_make_pseudo_tma.R only).
+PSEUDO_TMA_SLIDES       <- NULL       # NULL = all slides; or c("TMA_ORGAN")
+PSEUDO_CORE_DIAMETER_UM <- 600        # typical TMA needle: 0.6-1.5 mm
+PSEUDO_CORE_PITCH_UM    <- 1000       # centre-to-centre distance of the punch grid
+PSEUDO_MIN_CELLS        <- 500        # a punch must contain this many QC-pass cells
+PSEUDO_PATIENT_ID       <- NULL       # NULL = slide_id; e.g. "mouse1" if both rolls are one animal
+PSEUDO_ORGAN            <- "colon"
+PSEUDO_CENTERS          <- NULL       # roll centre per slide, e.g. data.frame(slide_id = "TMA_ORGAN", x = 5000, y = 4800)
+
 ## Core-level QC: cores failing these are flagged (not removed) in 02.
 CORE_MIN_CELLS         <- 500
 CORE_MIN_MEDIAN_COUNTS <- 20

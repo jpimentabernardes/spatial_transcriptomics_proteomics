@@ -71,6 +71,7 @@ route reached 4.8 µm on the same data.
 | # | Script | Lang | What it does |
 |---|---|---|---|
 | 01 | `01_xenium_object_prep.R` | R | Loads all slides (any segmentation) into one Seurat v5 object with one FOV per slide. Run metrics, per-cell QC flags, negative-control background. |
+| 02a | `02a_make_pseudo_tma.R` | R | **Testing only.** Punches virtual TMA cores out of whole sections (e.g. Swiss rolls), with an inner/middle/outer location per core, so the TMA pipeline can be tested before real TMAs exist. Then run 02 as usual. |
 | 02 | `02_tma_dearray.R` | R | Finds cores (DBSCAN, or Xenium Explorer / polygon selections) and matches them to `tma_map.csv`. Adds patient/organ/location, core QC, filtering. |
 | 03a | `03a_segment_cellpose.py` | Py | Runs cellpose per core (nuclei + expansion, or DAPI + boundary stain) and re-assigns transcripts. |
 | 03b | `03b_segment_segger.sh` + `03b_segger_to_common.py` | sh/Py | segger (GNN, transcript-to-cell assignment), converted to the same format. |
