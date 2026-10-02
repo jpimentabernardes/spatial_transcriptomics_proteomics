@@ -154,8 +154,17 @@ interactive use:
   tables after each step.
 
 Start Jupyter from inside `experiment1_tma/notebooks/`, or anywhere if you open the notebook
-from that folder, because the notebooks find the code one folder up. Use the same conda
-environment as the script (`env/py_imaging.yml`, or `env/py_align.yml` for 07b).
+from that folder, because the notebooks find the code one folder up. They must run in the
+same conda environment as the scripts (`exp1-imaging` from `env/py_imaging.yml`, or `exp1-spateo`
+from `env/py_align.yml` for 07b), not Jupyter's default Python. Register the environment as a
+Jupyter kernel once:
+```
+conda activate exp1-imaging
+conda install -c conda-forge ipykernel      # already in the .yml for new environments
+python -m ipykernel install --user --name exp1-imaging --display-name exp1-imaging
+```
+then choose it in Jupyter with **Kernel → Change kernel → exp1-imaging**. The first cell of
+each notebook prints which Python it runs on and says this if numpy is missing.
 
 The `.py` scripts remain the source and are what to run as cluster batch jobs. 07 via H&E and
 07b import functions from `07_register_modalities.py`. After changing a script, regenerate the

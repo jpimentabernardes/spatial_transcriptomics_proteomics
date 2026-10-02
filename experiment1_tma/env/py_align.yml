@@ -3,6 +3,7 @@
 #
 # Spateo:
 #   conda env create -f env/py_align.yml && conda activate exp1-spateo
+#   python -m ipykernel install --user --name exp1-spateo --display-name exp1-spateo   # for the 07b notebook
 #
 # GEASO (python 3.9, torch + dgl, used from a git clone):
 #   conda create -n exp1-geaso python=3.9 && conda activate exp1-geaso
@@ -22,6 +23,7 @@ dependencies:
   - pyarrow
   - tifffile>=2025.5
   - zarr>=3
+  - ipykernel        # so Jupyter can run the notebooks in this environment
   - pip
   - pip:
       - spateo-release

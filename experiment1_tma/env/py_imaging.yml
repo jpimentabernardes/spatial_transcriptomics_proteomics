@@ -1,5 +1,8 @@
 # Segmentation (03a, 06a) + registration (07). GPU node recommended for cellpose.
 #   conda env create -f env/py_imaging.yml && conda activate exp1-imaging
+# Notebooks: register the environment as a Jupyter kernel once, then pick
+# "exp1-imaging" as the kernel (Kernel > Change kernel):
+#   python -m ipykernel install --user --name exp1-imaging --display-name exp1-imaging
 name: exp1-imaging
 channels:
   - conda-forge
@@ -16,6 +19,7 @@ dependencies:
   - zarr>=3
   - simpleitk
   - geopandas         # reading segger boundary GeoParquet (03b)
+  - ipykernel        # so Jupyter can run the notebooks in this environment
   - pip
   - pip:
       - cellpose      # v4 (Cellpose-SAM) or v3 both supported by 03a/06a
