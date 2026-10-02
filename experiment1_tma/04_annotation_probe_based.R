@@ -90,7 +90,7 @@ map_l1 <- resolve_cluster_map(
 )
 xen$lineage <- unname(map_l1[as.character(xen$l1_clusters)])
 
-p_dot_l1 <- DotPlot(xen, features = unique(unlist(l1$signatures)), group.by = "l1_clusters") +
+p_dot_l1 <- marker_dotplot(xen, features = unique(unlist(l1$signatures)), group.by = "l1_clusters") +
   RotatedAxis() + ggtitle("Level-1 markers per cluster (check against annotation/level1_cluster_map)")
 save_fig(p_dot_l1, "04_level1_dotplot", width = 16, height = 8)
 
@@ -132,7 +132,7 @@ for (par in names(l2)) {
   xen[[paste0("l2_cluster_", par)]] <- NA_character_
   xen@meta.data[cells, paste0("l2_cluster_", par)] <- as.character(sub$l2_clusters)
 
-  p_dot <- DotPlot(sub, features = unique(unlist(sigs)), group.by = "l2_clusters") + RotatedAxis() +
+  p_dot <- marker_dotplot(sub, features = unique(unlist(sigs)), group.by = "l2_clusters") + RotatedAxis() +
     ggtitle(paste0(par, ": level-2 markers per sub-cluster"))
   p_umap <- DimPlot(sub, reduction = "l2_umap", group.by = "l2_clusters", label = TRUE, raster = TRUE) + NoLegend()
   save_fig(p_umap | p_dot, paste0("04_level2_", par), width = 20, height = 7)

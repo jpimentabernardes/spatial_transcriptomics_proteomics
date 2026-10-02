@@ -458,25 +458,68 @@ score_signatures <- function(obj, sigs, use_ucell = USE_UCELL, assay = "Xenium")
   sigs <- sigs[lengths(sigs) > 0]
   DefaultAssay(obj) <- assay
   if (use_ucell && requireNamespace("UCell", quietly = TRUE)) {
-    obj <- UCell::AddModuleScore_UCell(obj, features = sigs, name = "_UCell", assay = assay)
-    for (s in names(sigs)) {
-      obj[[paste0("score_", s)]] <- obj[[paste0(s, "_UCell"), drop = TRUE]]
-      obj[[paste0(s, "_UCell")]] <- NULL
+    ## serial (ncores = 1): no BiocParallel workers; if UCell still fails (version /
+    ## object-specific problems), say why and fall back to AddModuleScore below
+    res <- tryCatch(
+      UCell::AddModuleScore_UCell(obj, features = sigs, name = "_UCell", assay = assay, ncores = 1),
+      error = function(e) {
+        message("UCell failed (", conditionMessage(e), ") -- falling back to Seurat::AddModuleScore.")
+        NULL
+      })
+    if (!is.null(res)) {
+      for (s in names(sigs)) {
+        res[[paste0("score_", s)]] <- res[[paste0(s, "_UCell"), drop = TRUE]]
+        res[[paste0(s, "_UCell")]] <- NULL
+      }
+      return(res)
     }
-  } else {
-    if (use_ucell) message("UCell not installed -- falling back to AddModuleScore.")
-    ## control genes are sampled per expression bin, so ctrl must stay well
-    ## below the bin size (a few hundred genes / nbin) on a targeted panel
-    n_genes <- nrow(obj[[assay]])
-    nbin <- 12
-    obj <- AddModuleScore(obj, features = sigs, name = "tmpscore", assay = assay,
-                          ctrl = max(2, min(50, floor(n_genes / (2 * nbin)))), nbin = nbin)
-    for (i in seq_along(sigs)) {
-      obj[[paste0("score_", names(sigs)[i])]] <- obj[[paste0("tmpscore", i), drop = TRUE]]
-      obj[[paste0("tmpscore", i)]] <- NULL
-    }
+  } else if (use_ucell) {
+    message("UCell not installed -- falling back to AddModuleScore.")
+  }
+  ## control genes are sampled per expression bin, so ctrl must stay well
+  ## below the bin size (a few hundred genes / nbin) on a targeted panel
+  n_genes <- nrow(obj[[assay]])
+  nbin <- 12
+  obj <- AddModuleScore(obj, features = sigs, name = "tmpscore", assay = assay,
+                        ctrl = max(2, min(50, floor(n_genes / (2 * nbin)))), nbin = nbin)
+  for (i in seq_along(sigs)) {
+    obj[[paste0("score_", names(sigs)[i])]] <- obj[[paste0("tmpscore", i), drop = TRUE]]
+    obj[[paste0("tmpscore", i)]] <- NULL
   }
   obj
+}
+
+## Dot plot of marker genes per group (colour = scaled mean expression, size = % of
+## cells with counts), computed straight from the assay's data layer. Replaces
+## Seurat::DotPlot, which goes through FetchData() and fails ("non-numeric argument
+## to mathematical function") when a metadata column is returned instead of a gene.
+marker_dotplot <- function(obj, features, group.by, assay = "Xenium", layer = "data", log_data = TRUE) {
+  features <- intersect(unique(features), rownames(obj[[assay]]))
+  if (length(features) == 0) stop("marker_dotplot: none of the features are in assay ", assay)
+  m <- GetAssayData(obj, assay = assay, layer = layer)[features, , drop = FALSE]
+  if (!methods::is(m, "CsparseMatrix")) m <- methods::as(as.matrix(m), "CsparseMatrix")
+  grp <- droplevels(as.factor(obj[[group.by, drop = TRUE]]))
+  keep <- !is.na(grp)
+  m <- m[, keep, drop = FALSE]; grp <- grp[keep]
+  G <- Matrix::sparseMatrix(i = seq_along(grp), j = as.integer(grp), x = 1,
+                            dims = c(length(grp), nlevels(grp)), dimnames = list(NULL, levels(grp)))
+  n <- Matrix::colSums(G)
+  lin <- m
+  if (log_data) lin@x <- expm1(lin@x)                       # log-normalised -> linear, like DotPlot
+  avg <- as.matrix(lin %*% G) / rep(n, each = nrow(m))
+  pct <- as.matrix((m > 0) %*% G) / rep(n, each = nrow(m)) * 100
+  sc <- t(scale(t(avg)))
+  sc[is.na(sc)] <- 0
+  sc <- pmin(pmax(sc, -2.5), 2.5)
+  d <- data.frame(feature = factor(rep(features, times = ncol(avg)), levels = features),
+                  group = factor(rep(colnames(avg), each = nrow(avg)), levels = levels(grp)),
+                  avg_scaled = as.vector(sc), pct = as.vector(pct))
+  ggplot(d, aes(feature, group)) +
+    geom_point(aes(size = pct, colour = avg_scaled)) +
+    scale_colour_gradient(low = "lightgrey", high = "blue", name = "Average\nexpression\n(scaled)") +
+    scale_size(range = c(0, 6), limits = c(0, 100), name = "% expressed") +
+    labs(x = "Features", y = group.by) + theme_bw() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
 }
 
 ## Semi-manual annotation. Writes an editable CSV (cluster, suggested label,

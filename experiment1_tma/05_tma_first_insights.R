@@ -236,7 +236,7 @@ if (length(immune_targets) > 0 && length(imm_cells) > 0) {
   sub_imm <- CreateSeuratObject(counts = counts[, imm_cells], assay = "Xenium", meta.data = meta[imm_cells, ])
   sub_imm <- NormalizeData(sub_imm, scale.factor = median(xen$nCount_Xenium), verbose = FALSE)
   sub_imm$type_organ <- paste(sub_imm$cell_type, sub_imm$organ, sep = " | ")
-  p_dot_imm <- DotPlot(sub_imm, features = immune_targets, group.by = "type_organ") +
+  p_dot_imm <- marker_dotplot(sub_imm, features = immune_targets, group.by = "type_organ") +
     RotatedAxis() + ggtitle("Aim 1: immune targets within immune cell types, split by organ")
   save_fig(p_dot_imm, "05_aim1_immune_targets_dotplot_by_organ", width = 14,
            height = max(6, 0.18 * length(unique(sub_imm$type_organ))))
