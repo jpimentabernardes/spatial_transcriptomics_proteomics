@@ -45,6 +45,13 @@ coverage <- dplyr::bind_rows(
   dplyr::bind_rows(lapply(names(l2), function(par) cbind(level = 2, parent = par, l2[[par]]$coverage)))
 )
 save_table(coverage, "04_panel_coverage")
+message("Level-1 markers found on the panel: ", sum(l1$coverage$n_present), " of ", sum(l1$coverage$n_markers))
+if (length(l1$signatures) == 0) {
+  stop("None of the level-1 markers in ", MARKERS_RNA_CSV, " are on this panel, so nothing can be scored.\n",
+       "  Panel genes look like: ", paste(head(panel_genes, 8), collapse = ", "), " ...\n",
+       "  Markers look like:     ", paste(head(unlist(markers$level1), 8), collapse = ", "), " ...\n",
+       "  Check tables/04_panel_coverage.csv and edit the marker file to genes of your panel.")
+}
 
 ## -----------------------------------------------------------------------
 ## 2. Normalise + embed all cells

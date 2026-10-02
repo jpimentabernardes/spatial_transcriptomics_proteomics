@@ -456,6 +456,7 @@ assign_cells_to_polygons <- function(x, y, polygons) {
 ## Adds one score column per signature named score_<signature>.
 score_signatures <- function(obj, sigs, use_ucell = USE_UCELL, assay = "Xenium") {
   sigs <- sigs[lengths(sigs) > 0]
+  if (length(sigs) == 0) stop("score_signatures: no signature has any gene on the panel -- see the panel coverage table")
   DefaultAssay(obj) <- assay
   if (use_ucell && requireNamespace("UCell", quietly = TRUE)) {
     ## serial (ncores = 1): no BiocParallel workers; if UCell still fails (version /
