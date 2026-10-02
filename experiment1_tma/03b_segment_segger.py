@@ -29,6 +29,7 @@ Example
 """
 
 import argparse
+import glob
 import os
 import shlex
 import shutil
@@ -70,11 +71,30 @@ def find_pixi(path=None):
                             "or give its full path as --pixi / pixi=...")
 
 
-def run(cmd, cwd):
+def cuda_env(repo, pixi_env):
+    """Environment for segger with the CUDA runtime libraries of its own pixi environment on LD_LIBRARY_PATH.
+
+    PyTorch's pip wheels bring libcudart.so.12, cuBLAS, ... as nvidia-* packages
+    (site-packages/nvidia/<lib>/lib), but CuPy does not look there and fails with
+    "libcudart.so.12: cannot open shared object file" unless they are on the path."""
+    env = dict(os.environ)
+    libs = sorted(glob.glob(os.path.join(repo, ".pixi", "envs", pixi_env, "lib", "python3*",
+                                         "site-packages", "nvidia", "*", "lib")))
+    if libs:
+        env["LD_LIBRARY_PATH"] = ":".join(libs + [env.get("LD_LIBRARY_PATH", "")]).rstrip(":")
+        print(f"CUDA libraries of the segger environment put on LD_LIBRARY_PATH ({len(libs)} folders)")
+    else:
+        print("WARNING: no nvidia/*/lib folders in the segger environment -- is it installed (pixi install -e "
+              f"{pixi_env})? If segger then fails on libcudart.so.12, load the cluster's CUDA 12 module.")
+    return env
+
+
+def run(cmd, cwd, env=None):
     """Run a command and stream its output line by line (terminal and Jupyter). Returns the exit code."""
     print("$", " ".join(cmd), flush=True)
     t0 = time.time()
-    proc = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+    proc = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                            bufsize=1)
     for line in proc.stdout:
         print(line, end="", flush=True)
     rc = proc.wait()
@@ -109,6 +129,7 @@ def main():
     for d in (raw_out, export_dir, common_out):
         os.makedirs(d, exist_ok=True)
     pixi = find_pixi(a.pixi)
+    env = cuda_env(repo, a.pixi_env)
     print(f"pixi: {pixi}\nsegger: {repo} (env {a.pixi_env})\noutput: {raw_out}")
 
     # ---- 1. segger segment (GPU)
@@ -117,7 +138,7 @@ def main():
     else:
         gpu_report()
         rc = run([pixi, "run", "-e", a.pixi_env, "segger", "segment", "-i", a.xenium_dir, "-o", raw_out,
-                  *shlex.split(a.segger_options)], cwd=repo)
+                  *shlex.split(a.segger_options)], cwd=repo, env=env)
         if rc != 0:
             raise RuntimeError("segger segment failed -- see its output above")
     if not os.path.isfile(seg_parquet):
@@ -128,7 +149,7 @@ def main():
         if a.skip_segment:
             gpu_report()                                # export loads segger's CUDA libraries too
         rc = run([pixi, "run", "-e", a.pixi_env, "segger", "export", "boundaries",
-                  "-s", seg_parquet, "-o", export_dir], cwd=repo)
+                  "-s", seg_parquet, "-o", export_dir], cwd=repo, env=env)
         if rc != 0:
             print("boundary export failed -- continuing without cell areas")
     boundaries = os.path.join(export_dir, "cell_boundaries.parquet")
