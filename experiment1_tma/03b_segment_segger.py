@@ -102,16 +102,23 @@ def run(cmd, cwd, env=None):
     return rc
 
 
+NO_GPU_HELP = ("segger needs a GPU, and this job has none it can use. On a GPU node a job only sees GPUs it "
+               "asked for, so request one explicitly, e.g.\n"
+               "  srun --pty --partition=gpu --gpus-per-node=1 --cpus-per-task=8 --mem=128G --time=12:00:00 /bin/bash\n"
+               "(or #SBATCH --partition=gpu + #SBATCH --gpus-per-node=1), then check with: nvidia-smi")
+
+
 def gpu_report():
+    """Stop early, with the fix, when no GPU is visible (instead of segger's 'cudaErrorNoDevice')."""
     smi = shutil.which("nvidia-smi")
     if smi is None:
-        print("WARNING: nvidia-smi not found -- this does not look like a GPU node, and segger "
-              "needs a CUDA GPU. Start Jupyter (or this script) inside a GPU job.")
-        return False
+        raise RuntimeError("nvidia-smi not found -- this is not a GPU node.\n" + NO_GPU_HELP)
     out = subprocess.run([smi, "--query-gpu=name,memory.total,driver_version", "--format=csv,noheader"],
                          capture_output=True, text=True)
-    print("GPU:", out.stdout.strip() or out.stderr.strip())
-    return out.returncode == 0
+    gpus = [ln for ln in out.stdout.strip().splitlines() if ln.strip()]
+    if out.returncode != 0 or not gpus:
+        raise RuntimeError(f"no GPU visible ({(out.stdout + out.stderr).strip()}).\n" + NO_GPU_HELP)
+    print("GPU:", "; ".join(gpus), "| CUDA_VISIBLE_DEVICES =", os.environ.get("CUDA_VISIBLE_DEVICES", "(not set)"))
 
 
 def main():
