@@ -9,8 +9,10 @@ Python version of 03b_segment_segger.sh: same three steps, same outputs.
 segger lives in its own pixi environment (Python 3.11 + CUDA + RAPIDS), so steps
 1-2 are run as `pixi run -e cuda121 segger ...` from here, while this script /
 notebook itself runs in exp1-imaging. For step 1 the notebook must run on a GPU
-node (e.g. Jupyter started inside a GPU job). Steps 2-3 also work without GPU:
-re-run with skip_segment=True to redo only those.
+node (e.g. Jupyter started inside a GPU job). Step 2 needs the GPU too -- segger
+loads its CUDA libraries (CuPy) at start-up, so on a node without GPU even
+`segger --help` fails with "libcuda.so.1: cannot open shared object file". Step 3
+runs anywhere: skip_segment=True + skip_export=True redoes only the conversion.
 
 One-time install of segger (the login node is fine; it does not need the GPU):
   curl -fsSL https://pixi.sh/install.sh | sh  &&  source ~/.bashrc
@@ -83,7 +85,7 @@ def run(cmd, cwd):
 def gpu_report():
     smi = shutil.which("nvidia-smi")
     if smi is None:
-        print("WARNING: nvidia-smi not found -- this does not look like a GPU node, and segger segment "
+        print("WARNING: nvidia-smi not found -- this does not look like a GPU node, and segger "
               "needs a CUDA GPU. Start Jupyter (or this script) inside a GPU job.")
         return False
     out = subprocess.run([smi, "--query-gpu=name,memory.total,driver_version", "--format=csv,noheader"],
@@ -123,6 +125,8 @@ def main():
 
     # ---- 2. segger export boundaries (cell polygons -> cell areas)
     if not a.skip_export:
+        if a.skip_segment:
+            gpu_report()                                # export loads segger's CUDA libraries too
         rc = run([pixi, "run", "-e", a.pixi_env, "segger", "export", "boundaries",
                   "-s", seg_parquet, "-o", export_dir], cwd=repo)
         if rc != 0:
