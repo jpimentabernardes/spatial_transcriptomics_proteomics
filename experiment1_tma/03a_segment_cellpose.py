@@ -70,6 +70,10 @@ def parse_args():
     p.add_argument("--gpu", action="store_true")
     p.add_argument("--save-masks", action="store_true", help="save per-core label masks (.npz)")
     p.add_argument("--qc-png", type=int, default=4, help="write overlay PNGs for the first N regions")
+    p.add_argument("--level", type=int, default=0,
+                   help="pyramid level of the morphology image: 0 = full resolution (0.2125 um/px), "
+                        "1 = 2x downsampled (0.425 um/px, ~4x faster, nuclei still ~19 px). "
+                        "Use 1 when running on CPU")
     return p.parse_args()
 
 
@@ -82,7 +86,18 @@ def load_cellpose(mode, gpu):
         model = models.CellposeModel(gpu=gpu)
     else:
         model = models.CellposeModel(gpu=gpu, model_type="nuclei" if mode == "nuclei_expand" else "cyto3")
-    print(f"cellpose {version('cellpose')} loaded (gpu={gpu})")
+    try:
+        import torch
+        on_gpu = bool(gpu) and torch.cuda.is_available()
+        dev = torch.cuda.get_device_name(0) if on_gpu else f"CPU ({torch.get_num_threads()} threads)"
+    except ImportError:
+        on_gpu, dev = False, "CPU"
+    print(f"cellpose {version('cellpose')} loaded -- running on {dev}")
+    if gpu and not on_gpu:
+        print("WARNING: gpu=True but PyTorch sees no GPU (job without --gpus-per-node=1, or a CPU-only torch).")
+    if not on_gpu and major >= 4:
+        print("NOTE: Cellpose-SAM (cellpose 4) on CPU takes many minutes per core. Use a GPU job, "
+              "or level=1, or test a few cores first (cores=[...]).")
     return model, major
 
 
@@ -124,15 +139,19 @@ def main():
 
     t0 = time.time()
     os.makedirs(args.out_dir, exist_ok=True)
-    px = pixel_size_um(args.xenium_dir)
+    px0 = pixel_size_um(args.xenium_dir)
     ch = find_morphology_channels(args.xenium_dir)
     print("Morphology channels:", json.dumps(ch, indent=1))
-    dapi = PyramidImage(ch["dapi"], level=0)
+    dapi = PyramidImage(ch["dapi"], level=args.level)
+    px = px0 * dapi.downsample                     # um per pixel at the level that is segmented
+    print(f"segmenting pyramid level {args.level}: {px:.4f} um/px ({dapi.width} x {dapi.height} px)")
+    if px > 0.5:
+        print("WARNING: coarser than ~0.5 um/px, nuclei get too small for reliable segmentation; use level 0 or 1.")
     boundary = None
     if args.mode == "cyto":
         if ch["boundary"] is None:
             sys.exit("cyto mode needs the multimodal boundary stain image; none found.")
-        boundary = PyramidImage(ch["boundary"], level=0)
+        boundary = PyramidImage(ch["boundary"], level=args.level)
 
     diameter_um = args.diameter_um or (8.0 if args.mode == "nuclei_expand" else 15.0)
     diameter_px = diameter_um / px
@@ -158,6 +177,7 @@ def main():
     cell_tables, summaries = [], []
     n_cells_total = 0
 
+    t_loop = time.time()
     for i, reg in enumerate(regions.itertuples(index=False)):
         # padded crop in pixels, clipped to the image
         c0 = max(0, int(np.floor((reg.xmin - args.pad_um) / px)))
@@ -239,7 +259,9 @@ def main():
         print(f"[{i + 1}/{len(regions)}] {reg.region_id}: {len(props):,} cells, "
               f"{summaries[-1]['n_assigned_cellpose'] / max(summaries[-1]['n_tx_genes'], 1):.1%} "
               f"transcripts assigned (10x: "
-              f"{summaries[-1]['n_assigned_xenium'] / max(summaries[-1]['n_tx_genes'], 1):.1%})")
+              f"{summaries[-1]['n_assigned_xenium'] / max(summaries[-1]['n_tx_genes'], 1):.1%}) | "
+              f"{(time.time() - t_loop) / (i + 1) / 60:.1f} min/core, "
+              f"~{(time.time() - t_loop) / (i + 1) * (len(regions) - i - 1) / 60:.0f} min left", flush=True)
 
     if n_cells_total == 0:
         sys.exit("No cells segmented -- check the image channel and diameter.")
@@ -256,7 +278,7 @@ def main():
     write_common_format(args.out_dir, counts, cells["cell_id"].to_numpy(), features, cells, summary)
 
     with open(os.path.join(args.out_dir, "run_params.json"), "w") as fh:
-        json.dump({**vars(args), "pixel_size_um": px, "cellpose_major": major,
+        json.dump({**vars(args), "pixel_size_um": px, "pixel_size_level0_um": px0, "cellpose_major": major,
                    "runtime_min": round((time.time() - t0) / 60, 1)}, fh, indent=1)
     print(f"Done in {(time.time() - t0) / 60:.1f} min")
 
