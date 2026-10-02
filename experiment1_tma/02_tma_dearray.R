@@ -144,9 +144,11 @@ for (i in seq_len(nrow(slides))) {
   d$core_label <- ifelse(is.na(d$core_id), "unassigned", "core")
   if (nrow(d) > 3e5) d <- d[sample(nrow(d), 3e5), ]
   lab <- cores
+  ## drop the "<slide_id>_" prefix from labels -- the slide is in the title
+  short_id <- sub(paste0("^", sid, "_"), "", lab$core_id)
   lab$text <- if ("detected_core" %in% colnames(lab)) {
-    paste0(lab$core_id, "\n(", lab$core_row, lab$core_col, ", #", lab$detected_core, ")")
-  } else lab$core_id
+    paste0(short_id, "\n(", lab$core_row, lab$core_col, ", #", lab$detected_core, ")")
+  } else short_id
   p_dearray <- ggplot(d, aes(x_um, y_um)) +
     geom_point(aes(color = core_label), size = 0.05, stroke = 0) +
     geom_text(data = lab, aes(x_center, y_center, label = text), size = 2.5, fontface = "bold") +
