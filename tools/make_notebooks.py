@@ -165,10 +165,12 @@ def parameters_cell(opts, var, script):
     req = [n for n, _, r, _ in opts if r]
     src = ["from types import SimpleNamespace", "",
            f"# Same options as `python {script} --help` (--slide-id -> slide_id).", "",
+           "# Options marked REQUIRED have no default: replace their None, e.g. slide_id=\"TMA_ORGAN\".",
+           "# Paths are plain strings in quotes.", "",
            f"{var} = SimpleNamespace(", *body, ")"]
     if req:
         src += ["", f"missing = [k for k in {tuple(req)!r} if getattr({var}, k) in (None, '')]",
-                "if missing:", "    raise ValueError(f'Set these parameters first: {missing}')"]
+                "if missing:", "    raise ValueError(f'Fill in these options in the cell above (replace None with a value): {missing}')"]
     return new_code_cell("\n".join(src))
 
 
