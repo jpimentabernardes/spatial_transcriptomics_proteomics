@@ -76,7 +76,7 @@ route reached 4.8 µm on the same data.
 | 03a | `03a_segment_cellpose.py` | Py | Runs cellpose per core (nuclei + expansion, or DAPI + boundary stain) and re-assigns transcripts. |
 | 03b | `03b_segment_segger.py` (or `.sh`) + `03b_segger_to_common.py` | Py | segger (GNN, transcript-to-cell assignment), run through its pixi environment and converted to the same format. |
 | 03c | `03c_segmentation_benchmark.R` | R | 10x vs cellpose vs segger on the same cores: transcripts assigned, counts per cell, **MECR** (contamination), per organ. |
-| 04 | `04_annotation_probe_based.R` | R | Hierarchical, probe-based, semi-manual annotation (lineage → immune/stromal/epithelial subsets). Cluster→label decisions go in editable CSVs. |
+| 04 | `04_annotation_probe_based.R` | R | Hierarchical, probe-based, semi-manual annotation (lineage → immune/stromal/epithelial subsets). Per cluster: top FindAllMarkers genes + canonical markers (`CANONICAL_MARKERS`) in one dot plot, and each cluster's location in the tissue. Cluster→label decisions go in editable CSVs, or as a hand-made `CLUSTER_TO_CELLTYPE` mapping in `config.R`. |
 | 05 | `05_tma_first_insights.R` | R | Aim 1 and Aim 2 analyses (see table above) plus cellular niches. |
 | 06a | `06a_cellscape_segment.py` | Py | Only if you have CellScape images without a per-cell export: cellpose + per-channel mean intensities. |
 | 06 | `06_cellscape_prep.R` | R | CellScape → Seurat (`PROT` assay, arcsinh). QC, dearray with the same TMA map, annotation with the **same lineage names** as the RNA. |

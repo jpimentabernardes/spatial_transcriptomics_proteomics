@@ -98,6 +98,28 @@ N_PCS            <- 30
 USE_HARMONY      <- TRUE     # correct slide effects, NOT organ/patient effects
 RES_LEVEL1       <- 0.3
 RES_LEVEL2       <- 0.6
+TOP_N_PER_CLUSTER <- 5       # 04: top FindAllMarkers genes per cluster shown in the dot plot
+MARKERS_MAX_CELLS <- 2000    # 04: cells per cluster used by FindAllMarkers (speed; Inf = all)
+## 04: canonical markers always shown in the dot plot, next to the top markers of
+## each cluster. Matched to the panel ignoring case (Epcam = EPCAM); genes not on
+## the panel are listed and dropped. ADAPT to tissue / panel.
+CANONICAL_MARKERS <- c(
+  "Epcam", "Mki67", "Lgr5", "Olfm4", "Stmn1", "Atoh1", "Apoa4", "Fabp1", "Alpi",
+  "Slc26a3", "Car4", "Agr2", "Muc2", "Lyz1", "Defa5", "Mmp7", "Dclk1", "Trpm5",
+  "Chga", "Cd3d", "Cd4", "Cd8a", "Foxp3", "Il7r", "Ccr5", "Gzmb", "Ncam1",
+  "Cd79a", "Ighm", "Xcr1", "Itgax", "Itgam", "Csf1r", "Fcgr1", "Ly6c1", "Ly6g", "Siglecf"
+)
+## 04: optional hand-made mapping level-1 cluster -> cell type, written after
+## looking at figures/04_top_markers_dotplot_transcriptomics.png. NULL = use the
+## labels from annotation/*_cluster_map_*.csv. When set, it becomes `cell_type`
+## (the CSV-based label is kept as `cell_type_auto`); `lineage` still comes from
+## annotation/level1_cluster_map_<seg>.csv. Cluster numbers change with the data,
+## SEGMENTATION and RES_LEVEL1 -- re-check the mapping whenever those change.
+CLUSTER_TO_CELLTYPE <- NULL
+## CLUSTER_TO_CELLTYPE <- c(
+##   "0" = "Colonocytes", "1" = "Fibroblast", "2" = "Goblet cells 1", "3" = "Colonocytes Lipid 1",
+##   "4" = "Stem cells",  "5" = "T cells", "6" = "Macrophages"
+## )
 USE_UCELL        <- TRUE     # rank-based scores; robust to small panels. Falls back to AddModuleScore
 
 ## -----------------------------------------------------------------------

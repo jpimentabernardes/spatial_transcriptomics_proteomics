@@ -16,6 +16,9 @@
 ## Why "semi-manual": marker scores SUGGEST a label per cluster, written to an
 ## editable CSV in annotation/. You check the dotplots, edit `label`, set
 ## reviewed = TRUE and re-run. The decision lives in a versioned file.
+## To decide, 2b shows the transcriptomics view of each level-1 cluster: its
+## top FindAllMarkers genes next to canonical markers (CANONICAL_MARKERS in
+## config.R) in one dot plot, and where the cluster sits in each slide.
 ##
 ## Marker definitions: config/marker_panel_rna.csv (HUMAN gene symbols --
 ## ADAPT if any cores are non-human). Markers missing from the panel are
@@ -84,11 +87,57 @@ embed_and_cluster <- function(obj, resolution, n_pcs = N_PCS, prefix = "") {
 xen <- embed_and_cluster(xen, RES_LEVEL1, prefix = "l1_")
 
 ## -----------------------------------------------------------------------
+## 2b. Cell type calling from the transcriptomics: marker genes per
+##     cluster, shown next to canonical markers, and where each cluster
+##     sits in the tissue. Use these plots to check / edit the cluster
+##     labels in annotation/level1_cluster_map_<seg>.csv (section 3).
+##     max.cells.per.ident subsamples big clusters (speed); install presto
+##     for a much faster Wilcoxon test.
+## -----------------------------------------------------------------------
+Idents(xen) <- "l1_clusters"
+cl_markers <- FindAllMarkers(xen, assay = "Xenium", only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25,
+                             max.cells.per.ident = MARKERS_MAX_CELLS, verbose = FALSE)
+save_table(cl_markers, "04_level1_cluster_markers_all")
+top_markers <- cl_markers |>
+  group_by(cluster) |>
+  slice_max(order_by = avg_log2FC, n = TOP_N_PER_CLUSTER) |>
+  ungroup()
+save_table(top_markers, "04_level1_cluster_markers_top")
+print(top_markers |> dplyr::select(cluster, gene, avg_log2FC, pct.1, pct.2), n = 200)
+
+## Dot plot: canonical markers (CANONICAL_MARKERS in config.R) + top markers per cluster
+canonical <- match_case(as_seurat_features(CANONICAL_MARKERS), panel_genes)
+all_features <- unique(c(canonical, top_markers$gene))
+present_features <- intersect(all_features, panel_genes)
+missing_features <- setdiff(all_features, present_features)
+if (length(missing_features) > 0) {
+  message("Not present in this Xenium panel, dropped from plot: ", paste(missing_features, collapse = ", "))
+}
+if (length(present_features) > 0) {
+  p_dotplot <- DotPlot(xen, features = present_features, group.by = "l1_clusters", assay = "Xenium") +
+    scale_color_gradient2(low = "cornflowerblue", mid = "white", high = "red", midpoint = 0) +
+    RotatedAxis() +
+    theme(axis.text.x = element_text(size = 7)) +
+    ggtitle("Canonical markers + top markers per level-1 cluster")
+  save_fig(p_dotplot, "04_top_markers_dotplot_transcriptomics",
+           width = max(16, 0.18 * length(present_features) + 4),
+           height = max(6, 0.3 * length(levels(xen$l1_clusters)) + 3))
+}
+
+## Spatial location per cluster, one figure per slide
+for (sid in unique(xen$slide_id)) {
+  p_st <- plot_clusters_spatial(xen[[]], "l1_clusters", slide = sid)
+  save_fig(p_st, paste0("04_l1_clusters_spatial_", sid), width = 20, height = 18)
+}
+
+## -----------------------------------------------------------------------
 ## 3. Level 1: lineage
 ## -----------------------------------------------------------------------
 xen <- score_signatures(xen, l1$signatures)
 score_cols_l1 <- paste0("score_", names(l1$signatures))
-top_l1 <- top_markers_per_cluster(xen, "l1_clusters")
+top_l1 <- top_markers |>
+  group_by(cluster) |> summarise(genes = paste(gene, collapse = ";"), .groups = "drop")
+top_l1 <- stats::setNames(top_l1$genes, as.character(top_l1$cluster))
 map_l1 <- resolve_cluster_map(
   clusters = xen$l1_clusters,
   score_df = xen[[score_cols_l1]],
@@ -144,6 +193,31 @@ for (par in names(l2)) {
   p_umap <- DimPlot(sub, reduction = "l2_umap", group.by = "l2_clusters", label = TRUE, raster = TRUE) + NoLegend()
   save_fig(p_umap | p_dot, paste0("04_level2_", par), width = 20, height = 7)
   rm(sub); invisible(gc())
+}
+
+## -----------------------------------------------------------------------
+## 4b. Optional hand-made cell types (CLUSTER_TO_CELLTYPE in config.R):
+##     level-1 cluster -> cell type, chosen from the dot plot of 2b.
+## -----------------------------------------------------------------------
+if (!is.null(CLUSTER_TO_CELLTYPE)) {
+  xen$cell_type_auto <- xen$cell_type
+  manual <- unname(CLUSTER_TO_CELLTYPE[as.character(xen$l1_clusters)])
+  unlabelled <- setdiff(levels(xen$l1_clusters), names(CLUSTER_TO_CELLTYPE))
+  if (length(unlabelled) > 0) {
+    stop("CLUSTER_TO_CELLTYPE has no label for level-1 cluster(s): ", paste(unlabelled, collapse = ", "),
+         " -- the clusters changed (new data / segmentation / RES_LEVEL1?). Update the mapping in config.R.")
+  }
+  xen$cell_type <- manual
+  print(table(xen$cell_type))
+}
+
+## Cell types on the UMAP and in the tissue (one panel per cell type, per slide)
+p_celltype <- DimPlot(xen, group.by = "cell_type", reduction = "l1_umap", label = TRUE, repel = TRUE, raster = TRUE) +
+  NoLegend() + ggtitle("Transcriptomics-only cell type")
+save_fig(p_celltype, "04_celltype_UMAP", width = 12, height = 10)
+for (sid in unique(xen$slide_id)) {
+  p_ct <- plot_clusters_spatial(xen[[]], "cell_type", slide = sid)
+  save_fig(p_ct, paste0("04_celltype_spatial_facet_", sid), width = 20, height = 18)
 }
 
 ## >>> CHECK <<<

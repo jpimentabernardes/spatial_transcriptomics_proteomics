@@ -626,6 +626,27 @@ tau_index <- function(x) {
 ## cells, never depends on @images surviving a subset, and can facet by core.
 ## axes = TRUE draws micron axes + grid, so you can read off coordinates (e.g.
 ## for INSPECT_CENTERS in config.R); theme_void otherwise.
+## Where is each cluster? One panel per cluster: that cluster's cells in colour on
+## top of all cells of the slide in grey (a background layer without the facet
+## column is drawn in every panel).
+plot_clusters_spatial <- function(meta, cluster_col, slide = NULL, max_bg = 1e5, size = NULL, ncol = NULL,
+                                  colour = "firebrick") {
+  d <- meta
+  if (!is.null(slide)) d <- d[d$slide_id == slide, , drop = FALSE]
+  d$cluster <- factor(d[[cluster_col]])
+  ## point size from cell number: visible on a few hundred cells, not a blob on 100k+
+  if (is.null(size)) size <- max(0.15, min(1.5, 25 / sqrt(nrow(d))))
+  bg <- d[sample(nrow(d), min(nrow(d), max_bg)), c("x_um", "y_um")]
+  ggplot(d, aes(x_um, y_um)) +
+    geom_point(data = bg, colour = "grey80", size = size, stroke = 0) +
+    geom_point(colour = colour, size = size, stroke = 0) +
+    facet_wrap(~ cluster, ncol = ncol) +
+    scale_y_reverse() + coord_fixed() + theme_void() +
+    theme(strip.text = element_text(size = 10, face = "bold"),
+          panel.border = element_rect(colour = "grey60", fill = NA, linewidth = 0.3)) +
+    ggtitle(paste0(cluster_col, if (!is.null(slide)) paste0(" -- ", slide) else ""))
+}
+
 plot_cores_spatial <- function(meta, color_by, cores = NULL, facet = TRUE,
                                max_cells = 3e5, size = 0.15, title = NULL, axes = FALSE) {
   d <- meta
