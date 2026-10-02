@@ -5,7 +5,11 @@
 ## (patient, organ, tissue type, diagnosis, location) from config/tma_map.csv.
 ## Then does core-level QC and applies the cell filter from 01.
 ##
-## Two ways to define cores (per slide, picked automatically):
+## No TMA (whole tissue section, e.g. a Swiss roll)? Give the slide exactly ONE
+## row in tma_map.csv (core_row A, core_col 1, your sample id as core_id): the
+## whole section then becomes one sample ("whole-section mode", C below).
+##
+## Two ways to define cores on a TMA (per slide, picked automatically):
 ##   A. Polygon mode -- if config/core_selections/<slide_id>/ exists: one CSV
 ##      per core (file name = core_id) with X,Y vertices in microns, e.g.
 ##      drawn with Xenium Explorer's lasso and "Download selection
@@ -52,7 +56,21 @@ for (i in seq_len(nrow(slides))) {
   map_s <- tma_map[tma_map$slide_id == sid, ]
   if (nrow(map_s) == 0) stop("No rows for slide ", sid, " in tma_map.csv")
 
-  if (dir.exists(sel_dir)) {
+  if (nrow(map_s) == 1 && !dir.exists(sel_dir)) {
+    ## ---- C. whole section: one sample per slide (no TMA) ---------------------
+    ## A single tma_map row for this slide means "the whole section is one
+    ## sample" (e.g. a Swiss roll or a whole-tissue section): every cell gets
+    ## that core_id and no cores are searched for.
+    cid <- map_s$core_id
+    xs <- meta$x_um[in_slide]; ys <- meta$y_um[in_slide]
+    cx <- stats::median(xs); cy <- stats::median(ys)
+    meta$core_id[in_slide] <- cid
+    cores <- data.frame(core_id = cid, x_center = cx, y_center = cy,
+                        radius = max(sqrt((xs - cx)^2 + (ys - cy)^2)),
+                        xmin = min(xs), xmax = max(xs), ymin = min(ys), ymax = max(ys))
+    message(sid, ": one row in tma_map.csv -> whole-section mode, all cells = ", cid)
+
+  } else if (dir.exists(sel_dir)) {
     ## ---- A. polygon mode --------------------------------------------------
     polys <- read_core_selections(sel_dir)
     unknown <- setdiff(names(polys), map_s$core_id)

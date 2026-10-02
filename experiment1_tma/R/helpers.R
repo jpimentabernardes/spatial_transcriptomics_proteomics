@@ -271,6 +271,39 @@ merge_slides <- function(objs) {
 ## TMA dearraying
 ## -----------------------------------------------------------------------
 
+## Grid-based clustering: bins of `cell` um, bins with >= 2 cells are tissue,
+## 8-connected tissue bins form one cluster. Same result as DBSCAN for
+## well-separated TMA cores, with no compiled dependency (fallback when the
+## dbscan package cannot be loaded). Returns a cluster id per point, 0 = noise.
+grid_components <- function(xy, cell) {
+  gx <- floor((xy[, 1] - min(xy[, 1])) / cell) + 2      # +2: one empty border bin
+  gy <- floor((xy[, 2] - min(xy[, 2])) / cell) + 2
+  nx <- max(gx) + 1; ny <- max(gy) + 1
+  lin <- gx + (gy - 1) * nx
+  occ <- matrix(tabulate(lin, nbins = nx * ny) >= 2, nx, ny)
+  lab <- matrix(NA_real_, nx, ny)
+  lab[occ] <- seq_len(sum(occ))
+  shift <- function(m, dx, dy) {                        # m[i + dx, j + dy], NA outside
+    out <- matrix(NA_real_, nx, ny)
+    xs <- max(1, 1 - dx):min(nx, nx - dx); ys <- max(1, 1 - dy):min(ny, ny - dy)
+    out[xs, ys] <- m[xs + dx, ys + dy]
+    out
+  }
+  repeat {                                              # propagate the smallest label
+    old <- lab
+    for (d in list(c(1, 0), c(-1, 0), c(0, 1), c(0, -1), c(1, 1), c(1, -1), c(-1, 1), c(-1, -1))) {
+      nb <- shift(lab, d[1], d[2])
+      lab[occ] <- pmin(lab[occ], nb[occ], na.rm = TRUE)
+    }
+    if (identical(old, lab)) break
+  }
+  cl <- lab[lin]
+  out <- integer(length(cl))                           # 0 = noise
+  ok <- !is.na(cl)
+  out[ok] <- as.integer(factor(cl[ok]))
+  out
+}
+
 ## DBSCAN on cell centroids -> core seeds -> merge fragments -> core table.
 ## Returns data.frame(core_idx, x_center, y_center, radius, n_cells_dbscan, detected_core)
 detect_cores <- function(x, y,
@@ -281,11 +314,16 @@ detect_cores <- function(x, y,
     ## Adaptive: 3 x the median distance to the min_pts-th neighbour. Works for
     ## dense lymphoid cores and sparse lung/adipose alike, while staying far
     ## below the >= 200 um gaps between cores.
-    eps <- 3 * stats::median(dbscan::kNNdist(xy, k = min_pts))
-    message("DBSCAN eps (adaptive): ", round(eps, 1), " um")
+    eps <- 3 * stats::median(RANN::nn2(xy, k = min_pts + 1)$nn.dists[, min_pts + 1])
+    message("Clustering radius eps (adaptive): ", round(eps, 1), " um")
   }
-  db <- dbscan::dbscan(xy, eps = eps, minPts = min_pts)
-  cl <- db$cluster
+  cl <- if (requireNamespace("dbscan", quietly = TRUE)) {
+    tryCatch(dbscan::dbscan(xy, eps = eps, minPts = min_pts)$cluster, error = function(e) NULL)
+  }
+  if (is.null(cl)) {
+    message("dbscan package not usable -- using grid-based clustering instead")
+    cl <- grid_components(xy, eps)
+  }
   cl[cl == 0] <- NA
   if (all(is.na(cl))) stop("DBSCAN found no clusters -- increase DBSCAN_EPS_UM.")
 
