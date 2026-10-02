@@ -47,6 +47,23 @@ SCRIPTS = [
     ("tma_toolkit/examples/core_selection_walkthrough.py", "tma_toolkit/notebooks"),
 ]
 
+# packages each notebook needs: import name -> pip name (checked in the first cell, so a
+# missing one is reported before anything runs, with the command to install it)
+BASE = {"numpy": "numpy", "pandas": "pandas", "scipy": "scipy", "pyarrow": "pyarrow"}
+IMG = {**BASE, "tifffile": "tifffile", "zarr": "zarr", "imagecodecs": "imagecodecs", "skimage": "scikit-image",
+       "matplotlib": "matplotlib"}
+PACKAGES = {
+    "experiment1_tma/03a_segment_cellpose.py": {**IMG, "cellpose": "cellpose"},
+    "experiment1_tma/03b_segger_to_common.py": {**BASE},          # + geopandas only with boundaries
+    "experiment1_tma/06a_cellscape_segment.py": {**IMG, "cellpose": "cellpose"},
+    "experiment1_tma/07_register_modalities.py": {**IMG, "SimpleITK": "SimpleITK"},
+    "experiment1_tma/07_register_via_he.py": {**IMG, "SimpleITK": "SimpleITK"},
+    "experiment1_tma/07b_nonrigid_refine.py": {**BASE},           # spateo / GEASO: see env/py_align.yml
+    "tma_toolkit/scripts/make_core_metadata_template.py": {**BASE},
+    "tma_toolkit/scripts/build_tma_object.py": {**BASE, "anndata": "anndata", "sklearn": "scikit-learn",
+                                                "h5py": "h5py", "matplotlib": "matplotlib"},
+}
+
 # conda environment each notebook needs: (name, environment file)
 IMAGING = ("exp1-imaging", "experiment1_tma/env/py_imaging.yml")
 TOOLKIT = ("exp1-imaging", "experiment1_tma/env/py_imaging.yml + pip install -e tma_toolkit")
@@ -263,6 +280,24 @@ def convert_script(src, nb_dir):
                  f"        '  conda activate {env[0]}\\n'\n"
                  f"        '  python -m ipykernel install --user --name {env[0]} --display-name {env[0]}\\n'\n"
                  f"        'then in Jupyter: Kernel > Change kernel > {env[0]}  (environment file: {env[1]})')")
+    pkgs = PACKAGES.get(src)
+    if pkgs:
+        check += ("\n\n# Packages this step needs (import name: pip name). Anything missing is installed INTO THIS\n"
+                  "# kernel with %pip in a notebook cell -- not with pip in a terminal, which may be another Python.\n"
+                  "import importlib.util\n"
+                  f"needed = {pkgs!r}\n"
+                  "missing = [pip for mod, pip in needed.items() if importlib.util.find_spec(mod) is None]\n"
+                  "if missing:\n"
+                  "    raise ModuleNotFoundError(\n"
+                  "        f'Missing in this kernel: {\", \".join(missing)}\\n'\n"
+                  "        f'Run this in a new cell:  %pip install {\" \".join(missing)}\\n'\n"
+                  "        'then Kernel > Restart, and run the notebook again from the top.')\n"
+                  "print('All packages found.')")
+        if "cellpose" in pkgs:
+            check += ("\n\n# cellpose runs on PyTorch. On a GPU node check that it sees the GPU (else set gpu=False,\n"
+                      "# or install a CUDA build of torch first, see pytorch.org):\n"
+                      "try:\n    import torch\n    print('torch', torch.__version__, '| GPU available:', torch.cuda.is_available())\n"
+                      "except ImportError:\n    print('torch not found -- cellpose needs it:  %pip install torch')")
     cells.append(new_code_cell(
         "import os\n\n"
         f"# folder of {base}; this notebook sits in {os.path.basename(nb_dir)}/ next to it\n"
