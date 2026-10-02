@@ -12,6 +12,7 @@ Cell centroid = mean position of the cell's transcripts. Cell area comes from
 """
 
 import argparse
+import glob
 import os
 import sys
 
@@ -27,7 +28,8 @@ def parse_args():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--slide-id", required=True)
     p.add_argument("--xenium-dir", required=True)
-    p.add_argument("--segger-parquet", required=True)
+    p.add_argument("--segger-parquet", required=True,
+                   help="segger_segmentation.parquet written by segger, or the folder that contains it")
     p.add_argument("--boundaries", default=None)
     p.add_argument("--cores-csv", required=True)
     p.add_argument("--out-dir", required=True)
@@ -45,8 +47,38 @@ def core_of(x, y, cores):
     return out
 
 
+SEGGER_FILE = "segger_segmentation.parquet"
+
+
+def find_segger_parquet(path):
+    """The segger output file: a path to it, or a folder containing it (searched recursively)."""
+    p = os.path.expanduser(path)
+    hint = ""
+    if not os.path.isabs(p) and os.path.isdir(os.sep + p.split(os.sep)[0]):      # e.g. "work_ikmb/..."
+        hint = f"\n  The path is relative -- did you mean '/{p}' (leading slash missing)?"
+    if os.path.isfile(p):
+        return p
+    if os.path.isdir(p):
+        hits = sorted(glob.glob(os.path.join(p, "**", SEGGER_FILE), recursive=True))
+        if len(hits) == 1:
+            print(f"segger output found: {hits[0]}")
+            return hits[0]
+        if len(hits) > 1:
+            raise FileNotFoundError(f"several {SEGGER_FILE} under {p} -- give the full path of one:\n  "
+                                    + "\n  ".join(hits))
+        found = sorted(os.listdir(p))[:20]
+        raise FileNotFoundError(
+            f"no {SEGGER_FILE} under {p}. It is written by segger itself (03b_segment_segger.sh, "
+            f"step 'segger segment'), so segger has probably not run (or not finished) for this slide.\n"
+            f"  Folder contents: {found}")
+    raise FileNotFoundError(
+        f"{p} does not exist.{hint}\n  Expected <project>/data/segmentation/segger_raw/<slide_id>/{SEGGER_FILE}, "
+        f"written by 03b_segment_segger.sh (segger must have run first).")
+
+
 def main():
     a = parse_args()
+    a.segger_parquet = find_segger_parquet(a.segger_parquet)
     features = read_features(a.xenium_dir)
     name_to_idx = {n: i for i, n in enumerate(features["name"])}
     gene_names = set(features.loc[features["type"] == "Gene Expression", "name"])
