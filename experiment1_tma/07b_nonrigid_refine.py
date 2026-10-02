@@ -119,6 +119,12 @@ def main():
     # R/Seurat turned "_" into "-" in feature names, and the exported columns follow that
     pairs["gene"] = pairs.gene.str.replace("_", "-")
     pairs["protein"] = pairs.protein.str.replace("_", "-")
+    # config names are human-style (PTPRC); mouse panels spell them Ptprc -> match ignoring case
+    def match_case(names, columns):
+        upper = {c.upper(): c for c in columns}
+        return [n if n in columns else upper.get(n.upper(), n) for n in names]
+    pairs["gene"] = match_case(pairs.gene, fix.columns)
+    pairs["protein"] = match_case(pairs.protein, mov.columns)
     pairs = pairs[pairs.gene.isin(fix.columns) & pairs.protein.isin(mov.columns)]
     print(f"{len(pairs)} RNA/protein pairs available for the shared representation")
     lineages = np.array(sorted(set(fix.lineage) | set(mov.lineage)))

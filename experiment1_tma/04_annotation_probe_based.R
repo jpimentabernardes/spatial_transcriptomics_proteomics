@@ -169,7 +169,7 @@ save_fig(p_gal, "04_spatial_gallery_celltype", width = 16, height = 12)
 ##    a protein partner (config/rna_protein_pairs.csv).
 ## -----------------------------------------------------------------------
 pairs <- read_config_csv(RNA_PROT_PAIRS_CSV, stringsAsFactors = FALSE)
-pairs$gene <- as_seurat_features(pairs$gene)
+pairs$gene <- match_case(as_seurat_features(pairs$gene), panel_genes)
 pair_genes <- intersect(pairs$gene, panel_genes)
 expr <- GetAssayData(xen, assay = "Xenium", layer = "data")[pair_genes, , drop = FALSE]
 for (sid in unique(xen$slide_id)) {

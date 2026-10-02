@@ -45,7 +45,7 @@ meta <- xen[[]]
 genes <- rownames(counts)
 
 probes <- read_config_csv(PROBE_EXPECT_CSV, stringsAsFactors = FALSE)
-probes$gene <- as_seurat_features(probes$gene)
+probes$gene <- match_case(as_seurat_features(probes$gene), genes)
 missing_probes <- setdiff(probes$gene, genes)
 if (length(missing_probes) > 0) message("In probe_expectations.csv but not on panel: ", paste(missing_probes, collapse = ", "))
 probes <- probes[probes$gene %in% genes, ]

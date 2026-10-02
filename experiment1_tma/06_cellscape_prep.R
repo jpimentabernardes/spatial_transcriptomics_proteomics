@@ -248,7 +248,7 @@ if (length(odd) > 0) warning("CellScape lineages not used on the RNA side: ", pa
 ## 6. Export for registration (07/07b)
 ## -----------------------------------------------------------------------
 pairs <- read_config_csv(RNA_PROT_PAIRS_CSV, stringsAsFactors = FALSE)
-pairs$protein <- as_seurat_features(pairs$protein)
+pairs$protein <- match_case(as_seurat_features(pairs$protein), rownames(cs))
 pair_prot <- intersect(pairs$protein, rownames(cs))
 dat <- GetAssayData(cs, assay = "PROT", layer = "data")
 for (sid in unique(cs$slide_id)) {

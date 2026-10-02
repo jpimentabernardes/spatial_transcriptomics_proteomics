@@ -86,6 +86,15 @@ read_tma_map <- function(path = TMA_MAP_CSV) {
 ## never match.
 as_seurat_features <- function(x) gsub("_", "-", x, fixed = TRUE)
 
+## Config gene names -> the spelling used in the object, ignoring upper / lower case,
+## so the human-style names in config/ (EPCAM, PTPRC, CD3E) also find mouse genes
+## (Epcam, Ptprc, Cd3e). Exact matches win; names not in `features` come back
+## unchanged (and are then reported as missing by the caller).
+match_case <- function(x, features) {
+  hit <- match(toupper(x), toupper(features))
+  ifelse(x %in% features | is.na(hit), x, features[hit])
+}
+
 split_markers <- function(x) {
   x <- trimws(unlist(strsplit(ifelse(is.na(x), "", x), ";")))
   as_seurat_features(x[nzchar(x)])
@@ -113,6 +122,7 @@ read_marker_panel <- function(path) {
 ## targeted panel this is not cosmetic -- a cell type with 0-1 present
 ## markers cannot be annotated reliably, and that is itself an Aim 1 finding.
 restrict_to_panel <- function(sig_list, panel_genes, label = "", min_reliable = 2) {
+  sig_list <- lapply(sig_list, match_case, features = panel_genes)
   cov <- data.frame(
     cell_type = names(sig_list),
     n_markers = lengths(sig_list),
@@ -540,7 +550,7 @@ pseudobulk <- function(counts, group) {
 ## among cells expressing either. Lower = cleaner segmentation (less
 ## transcript spill-over between neighbouring cells).
 compute_mecr <- function(counts, lineage_markers) {
-  lineage_markers <- lapply(lineage_markers, intersect, rownames(counts))
+  lineage_markers <- lapply(lineage_markers, function(g) intersect(match_case(g, rownames(counts)), rownames(counts)))
   lineage_markers <- lineage_markers[lengths(lineage_markers) > 0]
   genes <- unique(unlist(lineage_markers))
   if (length(genes) < 2) return(NA_real_)

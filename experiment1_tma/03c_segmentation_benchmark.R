@@ -151,7 +151,7 @@ save_fig(p_tradeoff, "03c_sensitivity_vs_mecr", width = 12, height = 8)
 ##    counts) -- enough to SEE mixed cells at epithelium/immune borders.
 ## -----------------------------------------------------------------------
 zoom_core <- ZOOM_CORE %||% common_cores[1]
-lin <- lapply(markers$level1, intersect, y = rownames(seg[[1]]))
+lin <- lapply(markers$level1, function(g) intersect(match_case(g, rownames(seg[[1]])), rownames(seg[[1]])))
 lin <- lin[lengths(lin) > 0]
 zoom <- dplyr::bind_rows(lapply(names(seg), function(method) {
   o <- seg[[method]]

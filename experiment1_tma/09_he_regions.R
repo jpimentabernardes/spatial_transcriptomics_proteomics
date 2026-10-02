@@ -138,7 +138,7 @@ if (nrow(m) > 0) {
   save_fig(p_comp, "09_composition_by_he_region", width = 16, height = 10)
 
   probes <- read_config_csv(PROBE_EXPECT_CSV, stringsAsFactors = FALSE)
-  probes$gene <- as_seurat_features(probes$gene)
+  probes$gene <- match_case(as_seurat_features(probes$gene), rownames(xen[["Xenium"]]))
   targets <- intersect(probes$gene[probes$category == "immune_target"], rownames(xen[["Xenium"]]))
   if (length(targets) > 0) {
     cnt <- GetAssayData(xen, assay = "Xenium", layer = "counts")[, rownames(m), drop = FALSE]
