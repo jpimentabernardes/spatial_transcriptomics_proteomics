@@ -41,13 +41,12 @@ def main():
         if "patient_id" in df:
             print(f"{df.patient_id.nunique()} patients; cores per patient: "
                   f"{df.groupby('patient_id').size().describe()[['min', 'mean', 'max']].round(1).to_dict()}")
-        return
-
-    t = make_template(a.slide_id, a.rows, a.cols, a.tma_id, a.extra)
-    if a.append and os.path.exists(a.out):
-        t = pd.concat([pd.read_csv(a.out), t], ignore_index=True)
-    t.to_csv(a.out, index=False)
-    print(f"wrote {len(t)} rows -> {a.out}")
+    else:
+        t = make_template(a.slide_id, a.rows, a.cols, a.tma_id, a.extra)
+        if a.append and os.path.exists(a.out):
+            t = pd.concat([pd.read_csv(a.out), t], ignore_index=True)
+        t.to_csv(a.out, index=False)
+        print(f"wrote {len(t)} rows -> {a.out}")
 
 
 if __name__ == "__main__":

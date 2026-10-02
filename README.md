@@ -9,6 +9,9 @@
 > **New:** `tma_toolkit/` is a Python package for large TMAs (e.g. 200 cores). It covers the
 > core-metadata sheet, automatic dearraying, selecting and saving sets of cores, and
 > core/group comparisons on AnnData. See `tma_toolkit/README.md`.
+>
+> The Python steps of both are also available as Jupyter notebooks (`*/notebooks/`), generated
+> from the scripts by `tools/make_notebooks.py`.
 
 Teaching repo for a 3-part practical:
 

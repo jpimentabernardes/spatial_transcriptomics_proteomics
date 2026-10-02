@@ -255,6 +255,8 @@ class CoreSelection:
 
     # plots
     def plot_cores(self, color: str, max_cores: int = 30, **kw):
+        if self.n_cores == 0:
+            raise ValueError(f"no cores to plot -- the selection is empty ({self.description})")
         return P.plot_cores(self.cohort.adata, self.core_ids[:max_cores], color, self.cohort.core_key, **kw)
 
     def plot_composition(self, label: str, group_col: str | None = None, **kw):

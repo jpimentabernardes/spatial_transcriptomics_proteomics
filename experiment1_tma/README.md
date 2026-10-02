@@ -142,6 +142,26 @@ route reached 4.8 µm on the same data.
    (QuPath annotations on the Xenium-slide H&E) ; Rscript 09_he_regions.R
    ```
 
+### Python steps as Jupyter notebooks
+
+Every Python step also exists as a notebook in `notebooks/`: 03a, 03b_segger_to_common, 06a, 07,
+07_register_via_he and 07b. Each notebook has the same code as its script, laid out for
+interactive use:
+
+- one **Parameters** cell holds the script's command-line options (`--slide-id` → `slide_id`);
+- every helper function has its own cell;
+- the steps of `main()` are separate cells, so you can look at the images, transforms and
+  tables after each step.
+
+Start Jupyter from inside `experiment1_tma/notebooks/`, or anywhere if you open the notebook
+from that folder, because the notebooks find the code one folder up. Use the same conda
+environment as the script (`env/py_imaging.yml`, or `env/py_align.yml` for 07b).
+
+The `.py` scripts remain the source and are what to run as cluster batch jobs. 07 via H&E and
+07b import functions from `07_register_modalities.py`. After changing a script, regenerate the
+notebooks from the repo root with `python tools/make_notebooks.py`. This **overwrites** the
+notebooks, so save your own notebook edits under another name.
+
 ## Things to verify with the real data (flagged in the scripts as ADAPT / CHECK)
 
 - **CellScape export columns** (`CS_*` in `config.R`): column names and units differ between
