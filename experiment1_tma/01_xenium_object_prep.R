@@ -108,9 +108,10 @@ meta$qc_small        <- !is.na(meta$cell_area) & meta$cell_area < MIN_CELL_AREA
 meta$qc_large        <- !is.na(meta$cell_area) & meta$cell_area > meta$area_upper
 meta$qc_high_control <- meta$control_frac > MAX_CONTROL_FRAC
 meta$qc_pass <- !(meta$qc_low_counts | meta$qc_small | meta$qc_large | meta$qc_high_control)
+meta$qc_reason <- qc_reason(meta)          # first failing criterion, or "pass"
 
 for (col in c("nCount_controls", "control_frac", "counts_per_um2", "area_upper",
-              "qc_low_counts", "qc_small", "qc_large", "qc_high_control", "qc_pass")) {
+              "qc_low_counts", "qc_small", "qc_large", "qc_high_control", "qc_pass", "qc_reason")) {
   xen[[col]] <- meta[[col]]
 }
 
@@ -160,19 +161,49 @@ save_table(bg, "01_slide_background")
 ## -----------------------------------------------------------------------
 ## 5. Figures
 ## -----------------------------------------------------------------------
-p_vln <- VlnPlot(xen, features = c("nCount_Xenium", "nFeature_Xenium", "cell_area", "control_frac"),
-                 group.by = "slide_id", pt.size = 0, ncol = 4, log = FALSE)
+## Violins on a log scale (a handful of huge or very bright cells otherwise
+## squash everything), with the QC thresholds as dashed lines and the % of
+## cells each threshold removes.
+qc_violin <- function(col, label, trans, breaks, lo = NULL, hi = NULL) {
+  pct_lo <- if (!is.null(lo)) 100 * mean(meta[[col]] < lo, na.rm = TRUE) else NA
+  pct_hi <- if (!is.null(hi)) 100 * mean(meta[[col]] > hi, na.rm = TRUE) else NA
+  sub <- paste(c(if (!is.na(pct_lo)) sprintf("%.1f%% below %g", pct_lo, lo),
+                 if (!is.na(pct_hi)) sprintf("%.1f%% above %g", pct_hi, hi)), collapse = ", ")
+  ggplot(meta, aes(slide_id, .data[[col]], fill = slide_id)) +
+    geom_violin(scale = "width", linewidth = 0.2, colour = "grey30") +
+    geom_boxplot(width = 0.08, outlier.shape = NA, fill = "white", linewidth = 0.3) +
+    { if (!is.null(lo)) geom_hline(yintercept = lo, linetype = 2) } +
+    { if (!is.null(hi)) geom_hline(yintercept = hi, linetype = 2) } +
+    scale_y_continuous(trans = trans, breaks = breaks) +
+    scale_fill_manual(values = c("#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300")[seq_len(nrow(slides))],
+                      guide = "none") +
+    theme_bw(base_size = 10) + labs(x = NULL, y = NULL, title = label, subtitle = sub)
+}
+p_vln <- qc_violin("nCount_Xenium", "transcripts per cell", "log1p", c(0, 3, 10, 30, 100, 300, 1000, 3000), lo = MIN_COUNTS) |
+  qc_violin("nFeature_Xenium", "genes per cell", "log1p", c(0, 2, 5, 10, 20, 50, 100), lo = MIN_FEATURES) |
+  qc_violin("cell_area", "cell area (um2)", "log1p", c(0, 5, 10, 30, 100, 300, 1000, 3000),
+            lo = MIN_CELL_AREA, hi = MAX_CELL_AREA) |
+  qc_violin("control_frac", "negative-control fraction", "sqrt", c(0, 0.01, 0.05, 0.1, 0.25, 0.5, 1),
+            hi = MAX_CONTROL_FRAC)
 save_fig(p_vln, "01_qc_violin_by_slide", width = 16, height = 5)
 
+## Spatial maps with micron axes: read coordinates here for INSPECT_CENTERS
+## (section 6). QC_MAP_POINT_SIZE / QC_MAP_MAX_CELLS are set in config.R.
 p_spatial <- plot_cores_spatial(
   meta |> mutate(log10_counts = log10(nCount_Xenium + 1)),
-  color_by = "log10_counts", facet = FALSE
-) + facet_wrap(~ slide_id) + theme(aspect.ratio = NULL) +
+  color_by = "log10_counts", facet = FALSE, axes = TRUE,
+  size = QC_MAP_POINT_SIZE, max_cells = QC_MAP_MAX_CELLS
+) + facet_wrap(~ slide_id) +
   ggtitle("log10 transcripts per cell (look for whole cores that are dim = tissue/run problem)")
 save_fig(p_spatial, "01_counts_spatial_by_slide", width = 8 * nrow(slides), height = 8)
 
-p_pass <- plot_cores_spatial(meta, color_by = "qc_pass", facet = FALSE) +
-  facet_wrap(~ slide_id) + scale_color_manual(values = c(`TRUE` = "grey60", `FALSE` = "red"))
+## Coloured by WHY a cell fails -- tells you which threshold to look at.
+p_pass <- plot_cores_spatial(meta[order(meta$qc_reason != "pass"), ],      # failing cells drawn on top
+                             color_by = "qc_reason", facet = FALSE, axes = TRUE,
+                             size = QC_MAP_POINT_SIZE, max_cells = QC_MAP_MAX_CELLS) +
+  facet_wrap(~ slide_id) +
+  scale_color_manual(values = c(QC_REASON_COLORS[-1], pass = "grey80"), drop = FALSE, name = "cell QC") +
+  ggtitle("Cell QC: pass (grey) and the first criterion each failing cell fails")
 save_fig(p_pass, "01_qc_fail_spatial_by_slide", width = 8 * nrow(slides), height = 8)
 
 ## >>> CHECK <<<

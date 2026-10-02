@@ -523,16 +523,27 @@ tau_index <- function(x) {
 
 ## ggplot on metadata centroids instead of ImageDimPlot(): fast on millions of
 ## cells, never depends on @images surviving a subset, and can facet by core.
+## axes = TRUE draws micron axes + grid, so you can read off coordinates (e.g.
+## for INSPECT_CENTERS in config.R); theme_void otherwise.
 plot_cores_spatial <- function(meta, color_by, cores = NULL, facet = TRUE,
-                               max_cells = 3e5, size = 0.15, title = NULL) {
+                               max_cells = 3e5, size = 0.15, title = NULL, axes = FALSE) {
   d <- meta
   if (!is.null(cores)) d <- d[d$core_id %in% cores, , drop = FALSE]
-  if (nrow(d) > max_cells) d <- d[sample(nrow(d), max_cells), , drop = FALSE]
+  ## sort() keeps the caller's row order, so rows placed last are drawn on top
+  if (nrow(d) > max_cells) d <- d[sort(sample(nrow(d), max_cells)), , drop = FALSE]
   p <- ggplot(d, aes(x_um, y_um, color = .data[[color_by]])) +
     geom_point(size = size, stroke = 0) +
-    scale_y_reverse() +                      # image convention: y grows downwards
-    theme_void() +
     ggtitle(title %||% color_by)
+  p <- if (axes) {
+    p + scale_x_continuous(breaks = scales::breaks_pretty(10)) +
+      scale_y_reverse(breaks = scales::breaks_pretty(10)) +   # image convention: y grows downwards
+      theme_minimal(base_size = 9) +
+      theme(panel.grid.major = element_line(colour = "grey85", linewidth = 0.3),
+            panel.grid.minor = element_blank()) +
+      labs(x = "x (um)", y = "y (um)")
+  } else {
+    p + scale_y_reverse() + theme_void()
+  }
   ## coord_fixed() cannot be combined with free facet scales; cores are ~round,
   ## so a square panel keeps them undistorted enough.
   do_facet <- facet && "core_id" %in% colnames(d)

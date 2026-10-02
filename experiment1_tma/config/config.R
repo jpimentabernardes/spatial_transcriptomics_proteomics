@@ -64,6 +64,10 @@ MAX_CELL_AREA    <- 600    # um^2 -- hard ceiling; a per-slide MAD ceiling is al
 AREA_MAD_UPPER   <- 5      # flag cells > median + 5 MAD of log(area)
 MAX_CONTROL_FRAC <- 0.05   # flag cells where >5% of counts are negative controls
 
+## QC maps in 01 (whole-slide plots)
+QC_MAP_POINT_SIZE <- 0.3     # bigger = denser-looking tissue
+QC_MAP_MAX_CELLS  <- 1e6     # cells drawn per figure (random subsample above this)
+
 ## -----------------------------------------------------------------------
 ## TMA dearraying (02). Cores are usually 0.6-2 mm diameter with >= 200 um
 ## gaps; if neighbouring cores get merged, set a fixed DBSCAN_EPS_UM below the gap.
