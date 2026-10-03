@@ -164,10 +164,11 @@ INSPECT_N_PER_SLIDE <- 3       # windows chosen automatically per slide (mix of 
 ## Your own windows instead (centre in um, as read off 01_qc_fail_spatial_by_slide.png):
 ## INSPECT_CENTERS <- data.frame(slide_id = "TMA_ORGAN", x = 5200, y = 3100)
 INSPECT_CENTERS     <- NULL
-## Compare with cellpose in each zoom window: cellpose runs on the window itself,
-## with the same model / settings as 03a (keep these equal to what you use in 03a),
-## and its cells get the same QC rules. Needs cellpose in PYTHON_BIN's environment;
-## on CPU it takes ~1-2 min per window with cellpose 4. FALSE = 10x cells only.
+## Compare with cellpose in each zoom window, same QC rules. Inside a core that 03a
+## segmented with save_masks = TRUE, 03a's own result is used (data/segmentation/
+## cellpose/<slide>/masks/); elsewhere cellpose runs on the window itself with the
+## settings below (keep them equal to 03a's). Running cellpose needs it in
+## PYTHON_BIN's environment, ~1-2 min per window on CPU. FALSE = 10x cells only.
 INSPECT_CELLPOSE           <- TRUE
 INSPECT_CELLPOSE_MODE      <- "nuclei_expand"   # as 03a --mode
 INSPECT_CELLPOSE_EXPAND_UM <- 5                 # as 03a --expand-um

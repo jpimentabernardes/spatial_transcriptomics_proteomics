@@ -223,8 +223,10 @@ save_fig(p_pass, "01_qc_fail_spatial_by_slide", width = 8 * nrow(slides), height
 ##    Windows are picked automatically where pass and fail cells mix; set
 ##    INSPECT_CENTERS in config.R to look at a specific place instead.
 ##    With INSPECT_CELLPOSE = TRUE a second row shows the same window
-##    segmented by cellpose (03a settings, same QC rules): QC counts of both,
-##    10x vs cellpose outlines on the image, and cellpose cells by QC result.
+##    segmented by cellpose, with the same QC rules: QC counts of both, 10x vs
+##    cellpose outlines on the image, and cellpose cells by QC result. Inside a
+##    core that 03a segmented with save_masks = TRUE, 03a's own result is shown;
+##    elsewhere cellpose is run on the window with the 03a settings below.
 ## -----------------------------------------------------------------------
 if (!requireNamespace("tiff", quietly = TRUE)) {
   message("Section 6 skipped: install.packages('tiff') to read the image crops.")
@@ -244,7 +246,8 @@ if (!requireNamespace("tiff", quietly = TRUE)) {
     tag <- sprintf("%s_x%d_y%d", sid, round(w$x0), round(w$y0))
     cp_opts <- if (isTRUE(INSPECT_CELLPOSE)) {
       list(mode = INSPECT_CELLPOSE_MODE, expand_um = INSPECT_CELLPOSE_EXPAND_UM,
-           max_area = xm$area_upper[xm$slide_id == sid][1])
+           max_area = xm$area_upper[xm$slide_id == sid][1],
+           masks_dir = file.path(SEG_DIR, "cellpose", sid, "masks"))     # 03a's own result, if saved
     } else NULL
     crop <- tryCatch(
       crop_morphology(resolve_path(slides$xenium_dir[slides$slide_id == sid]),

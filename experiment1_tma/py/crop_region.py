@@ -12,8 +12,10 @@ Writes
   <prefix>_cell_boundaries.csv.gz     cell outlines (cell_id, vertex_x, vertex_y; microns) in the window
   <prefix>_nucleus_boundaries.csv.gz  nucleus outlines, same format (if present in the outs)
 
-With --cellpose, cellpose is also run on the window (+ a 30 um margin) with the
-same model and settings as 03a_segment_cellpose.py, its cells get transcript
+With --cellpose, the cellpose cells of the window are added: 03a's own result
+when --cellpose-masks-dir points to 03a's saved masks (03a --save-masks) and one
+covers the window, else cellpose run on the window (+ a 30 um margin) with the
+same model and settings as 03a_segment_cellpose.py. The cells get transcript
 counts and the same QC rules as 01 (thresholds passed in), and it writes
   <prefix>_cellpose_cells.csv                  cell_id, x_um, y_um, cell_area, n_counts, n_features,
                                                control_frac, qc_reason
@@ -87,18 +89,57 @@ def outlines(masks, labels, c0, r0, px, ids, max_vertices=60):
     return pd.concat(rows, ignore_index=True) if rows else pd.DataFrame(columns=["cell_id", "vertex_x", "vertex_y"])
 
 
-def cellpose_window(a, xenium_dir, px, prefix, pad=30.0, margin=15.0):
-    """Segment the window like 03a does and give each cellpose cell 01's QC flags."""
-    import importlib
-    import time
-    from types import SimpleNamespace
+def load_03a_masks(mask_dir, x0, y0, x1, y1):
+    """03a's saved label mask (masks/<core>.npz, --save-masks) covering the window centre, or None."""
+    import glob
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    best = None
+    for f in sorted(glob.glob(os.path.join(mask_dir, "*.npz"))):
+        z = np.load(f)
+        r0, c0 = (int(v) for v in z["offset_rc"])
+        mpx = float(z["pixel_size"])
+        h, w = z["masks"].shape
+        if c0 * mpx <= cx <= (c0 + w) * mpx and r0 * mpx <= cy <= (r0 + h) * mpx:
+            # prefer the mask whose centre is closest to the window (cores overlap only by their padding)
+            d = np.hypot((c0 + w / 2) * mpx - cx, (r0 + h / 2) * mpx - cy)
+            if best is None or d < best[0]:
+                best = (d, f, r0, c0, mpx)
+    if best is None:
+        return None
+    _, f, r0, c0, mpx = best
+    return np.load(f)["masks"].astype(np.int64), r0, c0, mpx, os.path.splitext(os.path.basename(f))[0]
 
-    import pyarrow.compute as pc
-    import pyarrow.dataset as ds
-    from skimage.measure import regionprops_table
-    from skimage.segmentation import expand_labels
+
+def cellpose_window(a, xenium_dir, px, prefix, pad=30.0, margin=15.0):
+    """Cellpose cells of the window -- 03a's own result when its masks were saved
+    (--cellpose-masks-dir), else cellpose run on the window like 03a does -- with
+    01's QC flags."""
+    import time
 
     t0 = time.time()
+    loaded = load_03a_masks(a.cellpose_masks_dir, a.x0, a.y0, a.x1, a.y1) if a.cellpose_masks_dir else None
+    if loaded is not None:
+        masks, r0, c0, px, core = loaded
+        r1, c1 = r0 + masks.shape[0], c0 + masks.shape[1]
+        nuclei, major, gpu = None, None, False
+        source = f"03a result ({core})"
+        print(f"using 03a's saved masks of {core}")
+    else:
+        if a.cellpose_masks_dir:
+            print(f"no 03a mask covers the window in {a.cellpose_masks_dir} -- running cellpose on the window")
+        masks, nuclei, r0, c0, r1, c1, major, gpu = segment_window(a, xenium_dir, px, pad)
+        source = "cellpose on this window, 03a settings"
+    return qc_and_outlines(a, xenium_dir, prefix, masks, nuclei, r0, c0, r1, c1, px, margin,
+                           {"cellpose_mode": a.cellpose_mode, "cellpose_major": major, "cellpose_gpu": bool(gpu),
+                            "cellpose_source": source, "t0": t0})
+
+
+def segment_window(a, xenium_dir, px, pad):
+    """Run cellpose on the window + pad exactly as 03a does (its load_cellpose / run_cellpose)."""
+    import importlib
+    from types import SimpleNamespace
+    from skimage.segmentation import expand_labels
+
     code_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     sys.path.insert(0, code_dir)
     s03a = importlib.import_module("03a_segment_cellpose")      # same model loading / call as 03a
@@ -132,6 +173,16 @@ def cellpose_window(a, xenium_dir, px, prefix, pad=30.0, margin=15.0):
         b = PyramidImage(ch["boundary"], level=0).read(r0, r1, c0, c1)
         stack = np.dstack([b, img] + ([np.zeros_like(img)] if major >= 4 else []))
         masks = s03a.run_cellpose(model, major, stack, diameter_um / px, opts)
+    return masks, nuclei, r0, c0, r1, c1, major, gpu
+
+
+def qc_and_outlines(a, xenium_dir, prefix, masks, nuclei, r0, c0, r1, c1, px, margin, info):
+    """Transcript counts and 01's QC flags per cellpose cell near the window; writes cells + outlines."""
+    import time
+
+    import pyarrow.compute as pc
+    import pyarrow.dataset as ds
+    from skimage.measure import regionprops_table
 
     props = pd.DataFrame(regionprops_table(masks, properties=("label", "centroid", "area")))
     props["x_um"] = (c0 + props["centroid-1"] + 0.5) * px
@@ -183,8 +234,8 @@ def cellpose_window(a, xenium_dir, px, prefix, pad=30.0, margin=15.0):
     if nuclei is not None:
         outlines(nuclei, props["label"], c0, r0, px, ids).to_csv(
             prefix + "_cellpose_nucleus_boundaries.csv.gz", index=False)
-    return {"cellpose_mode": a.cellpose_mode, "cellpose_major": major, "cellpose_gpu": bool(gpu),
-            "n_cellpose_cells": int(len(props)), "cellpose_seconds": round(time.time() - t0, 1)}
+    t0 = info.pop("t0")
+    return {**info, "n_cellpose_cells": int(len(props)), "cellpose_seconds": round(time.time() - t0, 1)}
 
 
 def main():
@@ -203,6 +254,8 @@ def main():
     g.add_argument("--cellpose-mode", choices=["nuclei_expand", "cyto"], default="nuclei_expand")
     g.add_argument("--cellpose-expand-um", type=float, default=5.0)
     g.add_argument("--cellpose-diameter-um", type=float, default=None)
+    g.add_argument("--cellpose-masks-dir", default=None,
+                   help="03a's masks/ folder (03a --save-masks): use 03a's own result where it covers the window")
     g.add_argument("--cellpose-gpu", type=lambda v: v.lower() in ("1", "true", "yes"), default=None,
                    help="default: use a GPU if PyTorch sees one")
     g.add_argument("--min-qv", type=float, default=20.0)

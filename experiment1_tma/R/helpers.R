@@ -737,6 +737,9 @@ crop_morphology <- function(xenium_dir, x0, y0, x1, y1, tag, image = NULL, cellp
               "--min-qv", MIN_QV, "--min-counts", MIN_COUNTS, "--min-features", MIN_FEATURES,
               "--min-area", MIN_CELL_AREA, "--max-control-frac", MAX_CONTROL_FRAC)
     if (!is.null(cellpose$max_area) && is.finite(cellpose$max_area)) args <- c(args, "--max-area", cellpose$max_area)
+    if (!is.null(cellpose$masks_dir) && dir.exists(cellpose$masks_dir)) {
+      args <- c(args, "--cellpose-masks-dir", shQuote(cellpose$masks_dir))
+    }
   }
   out <- system2(python, args, stdout = TRUE, stderr = TRUE)
   status <- attr(out, "status")
@@ -758,8 +761,8 @@ crop_morphology <- function(xenium_dir, x0, y0, x1, y1, tag, image = NULL, cellp
       out$cp_cells <- utils::read.csv(paste0(prefix, "_cellpose_cells.csv"), stringsAsFactors = FALSE)
       out$cp_outlines <- read_b("cellpose_cell")
       out$cp_nuclei <- read_b("cellpose_nucleus")
-      message("  cellpose: ", out$meta$n_cellpose_cells, " cells near the window (",
-              out$meta$cellpose_seconds, " s, ", if (isTRUE(out$meta$cellpose_gpu)) "GPU" else "CPU", ")")
+      message("  cellpose (", out$meta$cellpose_source, "): ", out$meta$n_cellpose_cells, " cells near the window, ",
+              out$meta$cellpose_seconds, " s")
     }
   }
   out
@@ -832,7 +835,7 @@ plot_inspection <- function(meta_slide, crop, win, title = "", point_size = 1.2)
   }
   p_cp <- p_cp + geom_point(data = cp, aes(x_um, -y_um, colour = qc), size = point_size) +
     scale_colour_manual(values = QC_REASON_COLORS, drop = FALSE, name = "cell QC") + frame +
-    ggtitle(sprintf("cellpose (%s, as 03a): %d pass, %d fail", crop$meta$cellpose_mode,
+    ggtitle(sprintf("cellpose (%s): %d pass, %d fail", crop$meta$cellpose_source %||% crop$meta$cellpose_mode,
                     sum(cp$qc[inw(cp)] == "pass"), sum(cp$qc[inw(cp)] != "pass")))
 
   ## overlay of both segmentations on the image: where do they disagree?
