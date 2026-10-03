@@ -194,6 +194,20 @@ def parameters_cell(opts, var, script):
     return new_code_cell("\n".join(src))
 
 
+def defaults_cell(opts, var):
+    """Separate cell: any option missing from the Parameters cell (e.g. one copied from an
+    older version of the notebook) gets the script's default, with a message."""
+    body = [f"    {n}={d}," for n, d, _, _ in opts]
+    src = ["# Options not set in the Parameters cell (e.g. a cell copied from an older version",
+           "# of this notebook) get the script's default. Nothing to edit here.",
+           "_defaults = dict(", *body, ")",
+           "for _k, _v in _defaults.items():",
+           f"    if not hasattr({var}, _k):",
+           f"        setattr({var}, _k, _v)",
+           "        print(f'{_k} not in the Parameters cell -> default {_v!r}')"]
+    return new_code_cell("\n".join(src))
+
+
 def code_or_heading(cells, seg_lines, level="###"):
     heading, code = split_heading(seg_lines)
     if heading:
@@ -321,6 +335,7 @@ def convert_script(src, nb_dir):
             if not params_done and opts:
                 body_cells.append(new_markdown_cell("## Parameters"))
                 body_cells.append(parameters_cell(opts, var, os.path.relpath(path, REPO)))
+                body_cells.append(defaults_cell(opts, var))
                 params_done = True
         block = []
 
