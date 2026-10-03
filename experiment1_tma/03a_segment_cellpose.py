@@ -251,9 +251,11 @@ def main():
         n_cells_total += len(props)
 
         if args.save_masks:
+            os.makedirs(mask_dir, exist_ok=True)       # also when save_masks was switched on after setup
             np.savez_compressed(os.path.join(mask_dir, f"{reg.region_id}.npz"),
                                 masks=masks, offset_rc=np.array([r0, c0]), pixel_size=px)
         if i < args.qc_png:
+            os.makedirs(qc_dir, exist_ok=True)
             qc_overlay(os.path.join(qc_dir, f"{reg.region_id}_overlay.png"), img_dapi, masks,
                        f"{args.slide_id} {reg.region_id}: {len(props)} cells ({args.mode})")
         print(f"[{i + 1}/{len(regions)}] {reg.region_id}: {len(props):,} cells, "
