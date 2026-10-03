@@ -96,8 +96,9 @@ CORE_MIN_MEDIAN_COUNTS <- 20
 ## -----------------------------------------------------------------------
 N_PCS            <- 30
 USE_HARMONY      <- TRUE     # correct slide effects, NOT organ/patient effects
-RES_LEVEL1       <- 0.3
-RES_LEVEL2       <- 0.6
+RES_CLUSTERS     <- 0.8      # 04: clustering of all cells (ST_clusters); higher = more, finer clusters
+RES_LEVEL1       <- 0.3      # 06 (CellScape): lineage clustering
+RES_LEVEL2       <- 0.6      # 06 (CellScape): sub-clustering within a lineage
 TOP_N_PER_CLUSTER <- 5       # 04: top FindAllMarkers genes per cluster shown in the dot plot
 MARKERS_MAX_CELLS <- 2000    # 04: cells per cluster used by FindAllMarkers (speed; Inf = all)
 ## 04: canonical markers always shown in the dot plot, next to the top markers of
@@ -109,17 +110,18 @@ CANONICAL_MARKERS <- c(
   "Chga", "Cd3d", "Cd4", "Cd8a", "Foxp3", "Il7r", "Ccr5", "Gzmb", "Ncam1",
   "Cd79a", "Ighm", "Xcr1", "Itgax", "Itgam", "Csf1r", "Fcgr1", "Ly6c1", "Ly6g", "Siglecf"
 )
-## 04: optional hand-made mapping level-1 cluster -> cell type, written after
-## looking at figures/04_top_markers_dotplot_transcriptomics.png. NULL = use the
-## labels from annotation/*_cluster_map_*.csv. When set, it becomes `cell_type`
-## (the CSV-based label is kept as `cell_type_auto`); `lineage` still comes from
-## annotation/level1_cluster_map_<seg>.csv. Cluster numbers change with the data,
-## SEGMENTATION and RES_LEVEL1 -- re-check the mapping whenever those change.
+## 04: cluster -> cell type, YOUR call, from figures/04_top_markers_dotplot_transcriptomics.png
+## and 04_ST_clusters_spatial_<slide>.png. 04 writes a ready-to-fill template with
+## each cluster's top markers: annotation/cluster_to_celltype_template_<seg>.R --
+## copy it here, fill in the names, re-run 04. NULL = cells are labelled cluster_<n>.
+## Cluster numbers change with the data, SEGMENTATION and RES_CLUSTERS: re-check
+## the mapping whenever those change (04 stops if a cluster has no name).
 CLUSTER_TO_CELLTYPE <- NULL
-## CLUSTER_TO_CELLTYPE <- c(
-##   "0" = "Colonocytes", "1" = "Fibroblast", "2" = "Goblet cells 1", "3" = "Colonocytes Lipid 1",
-##   "4" = "Stem cells",  "5" = "T cells", "6" = "Macrophages"
-## )
+## Lineage per cluster, one of Epithelial / Immune / Fibroblast / Endothelial /
+## Smooth_muscle_pericyte / Neural_glia (level-1 names of marker_panel_rna.csv):
+## 05 uses lineage == "Immune" and matches probe_expectations.csv to these names.
+## NULL = the marker-signature suggestion written in the template.
+CLUSTER_TO_LINEAGE <- NULL
 USE_UCELL        <- TRUE     # rank-based scores; robust to small panels. Falls back to AddModuleScore
 
 ## -----------------------------------------------------------------------
