@@ -222,6 +222,9 @@ save_fig(p_pass, "01_qc_fail_spatial_by_slide", width = 8 * nrow(slides), height
 ##    threshold that is too strict for this tissue).
 ##    Windows are picked automatically where pass and fail cells mix; set
 ##    INSPECT_CENTERS in config.R to look at a specific place instead.
+##    With INSPECT_CELLPOSE = TRUE a second row shows the same window
+##    segmented by cellpose (03a settings, same QC rules): QC counts of both,
+##    10x vs cellpose outlines on the image, and cellpose cells by QC result.
 ## -----------------------------------------------------------------------
 if (!requireNamespace("tiff", quietly = TRUE)) {
   message("Section 6 skipped: install.packages('tiff') to read the image crops.")
@@ -239,14 +242,19 @@ if (!requireNamespace("tiff", quietly = TRUE)) {
     w <- windows[k, ]
     sid <- w$slide_id
     tag <- sprintf("%s_x%d_y%d", sid, round(w$x0), round(w$y0))
+    cp_opts <- if (isTRUE(INSPECT_CELLPOSE)) {
+      list(mode = INSPECT_CELLPOSE_MODE, expand_um = INSPECT_CELLPOSE_EXPAND_UM,
+           max_area = xm$area_upper[xm$slide_id == sid][1])
+    } else NULL
     crop <- tryCatch(
       crop_morphology(resolve_path(slides$xenium_dir[slides$slide_id == sid]),
-                      w$x0, w$y0, w$x1, w$y1, tag),
+                      w$x0, w$y0, w$x1, w$y1, tag, cellpose = cp_opts),
       error = function(e) { message("Window ", tag, ": ", conditionMessage(e)); NULL })
     if (is.null(crop)) next
     p_zoom <- plot_inspection(xm[xm$slide_id == sid, ], crop, w,
                               title = sprintf("%s  x %.0f-%.0f, y %.0f-%.0f um", sid, w$x0, w$x1, w$y0, w$y1))
-    save_fig(p_zoom, paste0("01_qc_zoom_", tag), width = 15, height = 5.5, dpi = 200)
+    save_fig(p_zoom, paste0("01_qc_zoom_", tag), width = 15, height = if (is.null(crop$cp_cells)) 5.5 else 11,
+             dpi = 200)
   }
 }
 

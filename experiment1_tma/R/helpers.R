@@ -723,13 +723,21 @@ pick_inspection_windows <- function(meta, window_um = 150, n_per_slide = 3, min_
 ## Crop the morphology image (and cell / nucleus outlines) for one window via
 ## py/crop_region.py. Python does the reading because Xenium OME-TIFFs are tiled,
 ## pyramidal and compressed in ways R's TIFF readers do not handle reliably.
-crop_morphology <- function(xenium_dir, x0, y0, x1, y1, tag, image = NULL,
+## cellpose = list(mode, expand_um, max_area) runs cellpose on the window as well
+## (see py/crop_region.py) and returns its cells / outlines in $cp_cells, $cp_outlines.
+crop_morphology <- function(xenium_dir, x0, y0, x1, y1, tag, image = NULL, cellpose = NULL,
                             python = PYTHON_BIN, out_dir = file.path(PROCESSED_DIR, "inspection")) {
   dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
   prefix <- file.path(out_dir, tag)
   args <- c(file.path(CODE_DIR, "py", "crop_region.py"), "--xenium-dir", shQuote(xenium_dir),
             "--x0", x0, "--y0", y0, "--x1", x1, "--y1", y1, "--out-prefix", shQuote(prefix))
   if (!is.null(image)) args <- c(args, "--image", shQuote(image))
+  if (!is.null(cellpose)) {
+    args <- c(args, "--cellpose", "--cellpose-mode", cellpose$mode, "--cellpose-expand-um", cellpose$expand_um,
+              "--min-qv", MIN_QV, "--min-counts", MIN_COUNTS, "--min-features", MIN_FEATURES,
+              "--min-area", MIN_CELL_AREA, "--max-control-frac", MAX_CONTROL_FRAC)
+    if (!is.null(cellpose$max_area) && is.finite(cellpose$max_area)) args <- c(args, "--max-area", cellpose$max_area)
+  }
   out <- system2(python, args, stdout = TRUE, stderr = TRUE)
   status <- attr(out, "status")
   if (!is.null(status) && status != 0) {
@@ -740,9 +748,21 @@ crop_morphology <- function(xenium_dir, x0, y0, x1, y1, tag, image = NULL,
     f <- paste0(prefix, "_", kind, "_boundaries.csv.gz")
     if (file.exists(f)) utils::read.csv(f, stringsAsFactors = FALSE) else NULL
   }
-  list(image = tiff::readTIFF(paste0(prefix, "_image.tif"), as.is = TRUE),
-       meta = jsonlite::fromJSON(paste0(prefix, "_meta.json")),
-       cells = read_b("cell"), nuclei = read_b("nucleus"))
+  out <- list(image = tiff::readTIFF(paste0(prefix, "_image.tif"), as.is = TRUE),
+              meta = jsonlite::fromJSON(paste0(prefix, "_meta.json")),
+              cells = read_b("cell"), nuclei = read_b("nucleus"))
+  if (!is.null(cellpose)) {
+    if (!is.null(out$meta$cellpose_error)) {
+      message("  cellpose on window ", tag, " failed: ", out$meta$cellpose_error)
+    } else {
+      out$cp_cells <- utils::read.csv(paste0(prefix, "_cellpose_cells.csv"), stringsAsFactors = FALSE)
+      out$cp_outlines <- read_b("cellpose_cell")
+      out$cp_nuclei <- read_b("cellpose_nucleus")
+      message("  cellpose: ", out$meta$n_cellpose_cells, " cells near the window (",
+              out$meta$cellpose_seconds, " s, ", if (isTRUE(out$meta$cellpose_gpu)) "GPU" else "CPU", ")")
+    }
+  }
+  out
 }
 
 ## Three panels: where the window is on the slide | morphology alone |
@@ -792,6 +812,53 @@ plot_inspection <- function(meta_slide, crop, win, title = "", point_size = 1.2)
              fill = NA, colour = "#e34948", linewidth = 0.8) +
     coord_fixed() + theme_void() + ggtitle("window position")
 
-  (p_where | p_img | p_cells) + plot_layout(widths = c(1, 1.4, 1.4)) +
-    plot_annotation(title = title)
+  row1 <- (p_where | p_img | p_cells) + plot_layout(widths = c(1, 1.4, 1.4))
+  if (is.null(crop$cp_cells)) return(row1 + plot_annotation(title = title))
+
+  ## Row 2: the same window segmented by cellpose (03a settings), same QC rules
+  inw <- function(d) d$x_um >= win$x0 & d$x_um <= win$x1 & d$y_um >= win$y0 & d$y_um <= win$y1
+  cp <- crop$cp_cells
+  cp$qc <- factor(cp$qc_reason, levels = levels(cells$qc))
+  p_cp <- ggplot() + bg
+  if (!is.null(crop$cp_nuclei) && nrow(crop$cp_nuclei) > 0) {
+    p_cp <- p_cp + geom_polygon(data = crop$cp_nuclei, aes(vertex_x, -vertex_y, group = cell_id),
+                                fill = NA, colour = "white", linewidth = 0.15, alpha = 0.6)
+  }
+  if (!is.null(crop$cp_outlines) && nrow(crop$cp_outlines) > 0) {
+    b <- crop$cp_outlines
+    b$qc <- cp$qc[match(b$cell_id, cp$cell_id)]
+    p_cp <- p_cp + geom_polygon(data = b[!is.na(b$qc), ], aes(vertex_x, -vertex_y, group = cell_id, colour = qc),
+                                fill = NA, linewidth = 0.35)
+  }
+  p_cp <- p_cp + geom_point(data = cp, aes(x_um, -y_um, colour = qc), size = point_size) +
+    scale_colour_manual(values = QC_REASON_COLORS, drop = FALSE, name = "cell QC") + frame +
+    ggtitle(sprintf("cellpose (%s, as 03a): %d pass, %d fail", crop$meta$cellpose_mode,
+                    sum(cp$qc[inw(cp)] == "pass"), sum(cp$qc[inw(cp)] != "pass")))
+
+  ## overlay of both segmentations on the image: where do they disagree?
+  p_both <- ggplot() + bg
+  if (!is.null(crop$cells) && nrow(crop$cells) > 0) {
+    p_both <- p_both + geom_polygon(data = crop$cells, aes(vertex_x, -vertex_y, group = cell_id, colour = "10x"),
+                                    fill = NA, linewidth = 0.3)
+  }
+  if (!is.null(crop$cp_outlines) && nrow(crop$cp_outlines) > 0) {
+    p_both <- p_both + geom_polygon(data = crop$cp_outlines, aes(vertex_x, -vertex_y, group = cell_id,
+                                                                 colour = "cellpose"), fill = NA, linewidth = 0.3)
+  }
+  p_both <- p_both + scale_colour_manual(values = c(`10x` = "#00e5ff", cellpose = "#ffd400"), name = "outlines") +
+    frame + ggtitle("10x (cyan) vs cellpose (yellow) outlines")
+
+  ## numbers: cells in the window per QC result, both segmentations
+  q10 <- as.character(cells$qc[inw(cells)]); qcp <- as.character(cp$qc[inw(cp)])
+  tab <- data.frame(method = c(rep("10x", length(q10)), rep("cellpose", length(qcp))), qc = c(q10, qcp))
+  tab$qc <- factor(tab$qc, levels = levels(cells$qc))
+  tab$method <- factor(tab$method, levels = c("10x", "cellpose"))
+  p_tab <- ggplot(tab, aes(method, fill = qc)) + geom_bar() + scale_x_discrete(drop = FALSE) +
+    scale_fill_manual(values = QC_REASON_COLORS, drop = FALSE, guide = "none") +
+    theme_minimal(base_size = 9) + labs(x = NULL, y = "cells in window") +
+    ggtitle(sprintf("median counts/cell: 10x %.0f, cellpose %.0f",
+                    stats::median(cells$nCount_Xenium[inw(cells)]), stats::median(cp$n_counts[inw(cp)])))
+
+  row2 <- (p_tab | p_both | p_cp) + plot_layout(widths = c(1, 1.4, 1.4))
+  (row1 / row2) + plot_annotation(title = title)
 }
