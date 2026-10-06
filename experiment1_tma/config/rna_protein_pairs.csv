@@ -1,0 +1,15 @@
+pair_id,gene,protein,lineage
+CD45,PTPRC,CD45,Immune
+CD3,CD3E,CD3,Immune
+CD4,CD4,CD4,Immune
+CD8,CD8A,CD8,Immune
+FOXP3,FOXP3,FOXP3,Immune
+CD20,MS4A1,CD20,Immune
+CD68,CD68,CD68,Immune
+CD163,CD163,CD163,Immune
+EPCAM,EPCAM,EpCAM,Epithelial
+ECAD,CDH1,E-Cadherin,Epithelial
+KI67,MKI67,Ki67,
+CD31,PECAM1,CD31,Endothelial
+ASMA,ACTA2,aSMA,Smooth_muscle_pericyte
+VIM,VIM,Vimentin,Fibroblast

@@ -1,0 +1,13 @@
+gene,panel,category,expected_lineage,expected_cell_type
+PTPRC,colon,immune_target,Immune,
+CD3E,colon,immune_target,Immune,T_cell
+CD8A,colon,immune_target,Immune,CD8_T
+CD4,colon,immune_target,Immune,CD4_T
+FOXP3,colon,immune_target,Immune,Treg
+MS4A1,colon,immune_target,Immune,B_cell
+CD68,colon,immune_target,Immune,Macrophage
+EPCAM,colon,lineage_control,Epithelial,
+COL1A1,colon,lineage_control,Fibroblast,
+PECAM1,colon,lineage_control,Endothelial,
+REPLACE_CUSTOM_GENE_1,custom,immune_target,Immune,
+REPLACE_CUSTOM_GENE_2,custom,immune_target,Immune,
