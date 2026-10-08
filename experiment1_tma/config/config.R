@@ -206,7 +206,9 @@ PYTHON_BIN          <- Sys.getenv("EXP1_PYTHON", "python3")
 INSPECT_WINDOW_UM   <- 150     # side of each zoom window
 INSPECT_N_PER_SLIDE <- 3       # windows chosen automatically per slide (mix of pass + fail)
 ## Your own windows instead (centre in um, as read off 01_qc_fail_spatial_by_slide.png):
-## INSPECT_CENTERS <- data.frame(slide_id = "TMA_ORGAN", x = 5200, y = 3100)
+## Any number of windows, on any slides; slides not listed get automatic windows:
+## INSPECT_CENTERS <- data.frame(slide_id = c("TMA_ORGAN", "TMA_TUMOR", "TMA_TUMOR"),
+##                               x = c(5200, 3000, 6100), y = c(3100, 2500, 4200))
 INSPECT_CENTERS     <- NULL
 ## Compare with cellpose in each zoom window, same QC rules. Inside a core that 03a
 ## segmented with save_masks = TRUE, 03a's own result is used (data/segmentation/

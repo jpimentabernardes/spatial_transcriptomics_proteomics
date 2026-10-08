@@ -221,7 +221,8 @@ save_fig(p_pass, "01_qc_fail_spatial_by_slide", width = 8 * nrow(slides), height
 ##    clear nucleus, or good-looking nuclei that fail only on counts (a
 ##    threshold that is too strict for this tissue).
 ##    Windows are picked automatically where pass and fail cells mix; set
-##    INSPECT_CENTERS in config.R to look at a specific place instead.
+##    INSPECT_CENTERS in config.R to look at specific places instead (slides
+##    without an entry there still get INSPECT_N_PER_SLIDE automatic windows).
 ##    With INSPECT_CELLPOSE = TRUE a second row shows the same window
 ##    segmented by cellpose, with the same QC rules: QC counts of both, 10x vs
 ##    cellpose outlines on the image, and cellpose cells by QC result. Inside a
@@ -233,10 +234,20 @@ if (!requireNamespace("tiff", quietly = TRUE)) {
 } else {
   xm <- xen[[]]
   xm$cell_id <- as.character(xm$cell_id)
-  windows <- if (!is.null(INSPECT_CENTERS)) {
-    h <- INSPECT_WINDOW_UM / 2
+  ## your windows (INSPECT_CENTERS) + automatic ones (INSPECT_N_PER_SLIDE) for every
+  ## slide you listed no window for
+  h <- INSPECT_WINDOW_UM / 2
+  own <- if (!is.null(INSPECT_CENTERS)) {
     with(INSPECT_CENTERS, data.frame(slide_id = slide_id, x0 = x - h, y0 = y - h, x1 = x + h, y1 = y + h))
-  } else pick_inspection_windows(xm, INSPECT_WINDOW_UM, INSPECT_N_PER_SLIDE)
+  }
+  auto_slides <- setdiff(unique(xm$slide_id), own$slide_id)
+  auto <- if (length(auto_slides) > 0) {
+    pick_inspection_windows(xm[xm$slide_id %in% auto_slides, ], INSPECT_WINDOW_UM, INSPECT_N_PER_SLIDE)
+  }
+  windows <- dplyr::bind_rows(own, if (!is.null(auto)) auto[, c("slide_id", "x0", "y0", "x1", "y1")])
+  message("Zoom windows: ", paste(sprintf("%s %d", names(table(windows$slide_id)), table(windows$slide_id)),
+                                  collapse = ", "),
+          if (length(auto_slides)) paste0(" (automatic for ", paste(auto_slides, collapse = ", "), ")"))
   print(windows)
   save_table(windows, "01_inspection_windows")
 
