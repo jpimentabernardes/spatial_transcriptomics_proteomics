@@ -98,6 +98,8 @@ read_slides <- function(path = SLIDES_CSV) {
   for (col in c("row_flip", "col_flip", "cs_row_flip", "cs_col_flip")) {
     if (col %in% colnames(s)) s[[col]] <- as.logical(s[[col]]) %in% TRUE
   }
+  if (!"rotate" %in% colnames(s)) s$rotate <- 0
+  s$rotate[is.na(s$rotate) | s$rotate == ""] <- 0
   s
 }
 
@@ -420,28 +422,73 @@ assign_cells_to_cores <- function(x, y, cores, factor = CORE_MAX_DIST_FACTOR) {
   out
 }
 
-## Rows = clusters of y centres, columns = clusters of x centres. Row A is at
-## the TOP of the image (smallest y) unless row_flip -- set *_flip in
-## slides.csv if the TMA was mounted rotated. ALWAYS check the labelled plot.
-assign_grid <- function(cores, row_levels, col_levels, row_flip = FALSE, col_flip = FALSE) {
-  cluster_axis <- function(v, k) {
-    k <- min(k, length(unique(round(v))))
-    if (k <= 1) return(rep(1L, length(v)))
-    g <- stats::cutree(stats::hclust(stats::dist(v), method = "average"), k = k)
-    rank_of_group <- rank(tapply(v, g, mean))
-    as.integer(rank_of_group[as.character(g)])
+## Rotation of the slide relative to the TMA map (slides.csv column `rotate`):
+## how far to turn the image to the LEFT (counter-clockwise) so it looks like
+## the map -- 0, 90, 180 or 270 ("left" = 90, "right" = 270 = -90).
+## Image coordinates (y grows downwards): after turning left by 90, the old
+## top-right corner is the new top-left one.
+rotate_xy <- function(x, y, rotate = 0) {
+  r <- tolower(trimws(as.character(rotate)))
+  r <- if (is.na(r) || r %in% c("", "na")) 0 else if (r == "left") 90 else if (r == "right") 270 else as.numeric(r)
+  r <- ((r %% 360) + 360) %% 360
+  switch(as.character(r),
+         "0" = cbind(x, y), "90" = cbind(y, -x), "180" = cbind(-x, -y), "270" = cbind(-y, x),
+         stop("rotate must be 0, 90, 180 or 270 (degrees to the left), or left / right; got ", rotate))
+}
+
+## Angle of the core grid (radians, -45..45 deg): TMAs are rarely placed exactly
+## straight. From the directions to each core's nearest neighbours (4-fold
+## symmetric, so rows and columns both count).
+grid_angle <- function(xy) {
+  if (nrow(xy) < 4) return(0)
+  nn <- RANN::nn2(xy, k = min(5, nrow(xy)))
+  a <- unlist(lapply(2:ncol(nn$nn.idx), function(j) {
+    d <- xy[nn$nn.idx[, j], , drop = FALSE] - xy
+    atan2(d[, 2], d[, 1])
+  }))
+  atan2(mean(sin(4 * a)), mean(cos(4 * a))) / 4
+}
+
+## 1-D grouping of core centres into rows (or columns): a new group starts at a
+## gap > `gap`; groups are numbered by their distance from the first one in
+## units of the pitch, so an empty row in the middle keeps the numbering right.
+axis_index <- function(v, gap) {
+  o <- order(v)
+  sv <- v[o]
+  grp <- cumsum(c(1, diff(sv) > gap))
+  centres <- as.numeric(tapply(sv, grp, mean))
+  d <- diff(centres)
+  pitch <- if (length(d) > 0) stats::median(d[d <= 1.5 * stats::median(d)]) else 1
+  idx <- round((centres - centres[1]) / pitch) + 1
+  out <- integer(length(v))
+  out[o] <- idx[grp]
+  list(index = out, n_groups = length(centres), n_positions = max(idx), pitch = pitch)
+}
+
+## Core grid position -> row / column labels of tma_map.csv.
+##   rotate      turn the slide this far to the LEFT first (see rotate_xy)
+##   row/col_flip  then count rows from the bottom / columns from the right
+## After rotation the first row is at the TOP and the first column at the LEFT.
+## A tilted grid is straightened first. ALWAYS check the labelled plot.
+assign_grid <- function(cores, row_levels, col_levels, row_flip = FALSE, col_flip = FALSE, rotate = 0) {
+  xy <- rotate_xy(cores$x_center, cores$y_center, rotate)
+  th <- grid_angle(xy)
+  ds <- cbind(xy[, 1] * cos(th) + xy[, 2] * sin(th), -xy[, 1] * sin(th) + xy[, 2] * cos(th))
+  gap <- if (nrow(ds) > 1) 0.5 * stats::median(RANN::nn2(ds, k = 2)$nn.dists[, 2]) else 1
+  r <- axis_index(ds[, 2], gap)
+  c <- axis_index(ds[, 1], gap)
+  message(sprintf("  grid: rotate %s, tilt %.1f deg straightened; %d rows found (map: %d), %d columns found (map: %d)",
+                  rotate, th * 180 / pi, r$n_positions, length(row_levels), c$n_positions, length(col_levels)))
+  if (r$n_positions != length(row_levels) || c$n_positions != length(col_levels)) {
+    warning("Detected rows/columns differ from tma_map.csv (empty edge rows, merged or missing cores?). ",
+            "Labels may be shifted -- check the dearray plot and use config/core_overrides.csv if needed.")
   }
-  r <- cluster_axis(cores$y_center, length(row_levels))
-  c <- cluster_axis(cores$x_center, length(col_levels))
-  if (max(r) < length(row_levels) || max(c) < length(col_levels)) {
-    warning("Fewer detected rows/columns than in tma_map.csv (missing cores?). ",
-            "Row/column labels may be shifted -- verify the dearray plot and use ",
-            "config/core_overrides.csv if needed.")
-  }
-  if (row_flip) r <- max(r) + 1L - r
-  if (col_flip) c <- max(c) + 1L - c
-  cores$core_row <- row_levels[r]
-  cores$core_col <- col_levels[c]
+  ri <- r$index
+  ci <- c$index
+  if (row_flip) ri <- max(ri) + 1L - ri
+  if (col_flip) ci <- max(ci) + 1L - ci
+  cores$core_row <- row_levels[ri]          # NA beyond the map
+  cores$core_col <- col_levels[ci]
   cores
 }
 

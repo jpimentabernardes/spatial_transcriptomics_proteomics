@@ -16,8 +16,11 @@
 ##      coordinates". Most accurate; use it for torn/irregular tumour cores.
 ##   B. Automatic mode -- DBSCAN on cell centroids finds cores, rows/columns
 ##      are inferred from the core positions and matched to core_row/core_col
-##      in tma_map.csv. Fast, but the grid inference MUST be checked on the
-##      labelled plot (missing cores or a rotated TMA shift labels). Fix any
+##      in tma_map.csv. If the slide is turned relative to the map, set
+##      `rotate` in slides.csv (degrees to turn it LEFT: 90, 180, 270), and
+##      row_flip / col_flip to count from the other side. A slightly tilted
+##      grid is straightened automatically. The grid inference MUST be checked
+##      on the labelled plot (missing edge rows shift labels). Fix any
 ##      mistakes with config/core_overrides.csv:
 ##         slide_id,detected_core,core_row,core_col
 ##
@@ -102,7 +105,8 @@ for (i in seq_len(nrow(slides))) {
       row_levels = sort_levels(map_s$core_row),
       col_levels = sort_levels(map_s$core_col),
       row_flip = isTRUE(slides$row_flip[i]),
-      col_flip = isTRUE(slides$col_flip[i])
+      col_flip = isTRUE(slides$col_flip[i]),
+      rotate = slides$rotate[i]
     )
     if (!is.null(overrides)) {
       ov <- overrides[overrides$slide_id == sid, ]
