@@ -492,6 +492,55 @@ assign_grid <- function(cores, row_levels, col_levels, row_flip = FALSE, col_fli
   cores
 }
 
+## Grid from ANCHOR cores (config/core_anchors.csv: slide_id, core_id, x_um, y_um):
+## three or more cores you identified on the dearray plot, e.g. the corners a1,
+## j1 and a10, with their centres read off the micron axes. The map position of
+## every other core follows from them (an affine fit: rotation, mirroring, tilt
+## and spacing all included), so nothing has to be guessed. A detected core
+## further than max_off x pitch from the nearest map position stays unlabelled.
+assign_grid_anchors <- function(cores, anchors, map_s, row_levels, col_levels, max_off = 0.4) {
+  bad <- setdiff(anchors$core_id, map_s$core_id)
+  if (length(bad) > 0) stop("core_anchors.csv: core_id not in tma_map.csv for this slide: ", paste(bad, collapse = ", "))
+  a <- merge(anchors, map_s[, c("core_id", "core_row", "core_col")], by = "core_id")
+  ci <- match(as.character(a$core_col), col_levels)
+  ri <- match(as.character(a$core_row), row_levels)
+  X <- cbind(1, ci, ri)
+  if (nrow(a) < 3 || qr(X)$rank < 3) {
+    stop("core_anchors.csv: need at least 3 anchor cores per slide that are not all in one row or one column ",
+         "(e.g. the corners a1, j1 and a10).")
+  }
+  fx <- stats::lm.fit(X, as.numeric(a$x_um))$coefficients
+  fy <- stats::lm.fit(X, as.numeric(a$y_um))$coefficients
+  A <- rbind(fx[2:3], fy[2:3])                       # um per column step / per row step
+  b <- c(fx[1], fy[1])
+  step_col <- sqrt(sum(A[, 1]^2)); step_row <- sqrt(sum(A[, 2]^2))
+  pred_a <- t(A %*% rbind(ci, ri) + b)
+  res <- sqrt(rowSums((pred_a - cbind(a$x_um, a$y_um))^2))
+  message(sprintf("  anchors: %d cores, spacing %.0f um between columns, %.0f um between rows, largest anchor misfit %.0f um",
+                  nrow(a), step_col, step_row, max(res)))
+  if (max(res) > 0.25 * min(step_col, step_row)) {
+    warning("The anchors do not fit one grid -- misfit per anchor (um): ",
+            paste(sprintf("%s %.0f", a$core_id, res), collapse = ", "),
+            ". A core_id or coordinate in core_anchors.csv is wrong: on the dearray plot the blue + of",
+            " that core is not on its core.")
+  }
+  uv <- t(solve(A) %*% (rbind(cores$x_center, cores$y_center) - b))     # (column index, row index), fractional
+  k <- round(uv)
+  off <- sqrt(rowSums(((uv - k) %*% t(A))^2))                         # um from the nearest map position
+  ok <- off <= max_off * min(step_col, step_row) &
+    k[, 1] >= 1 & k[, 1] <= length(col_levels) & k[, 2] >= 1 & k[, 2] <= length(row_levels)
+  cores$core_col <- ifelse(ok, col_levels[pmax(1, pmin(k[, 1], length(col_levels)))], NA)
+  cores$core_row <- ifelse(ok, row_levels[pmax(1, pmin(k[, 2], length(row_levels)))], NA)
+  cores$grid_offset_um <- round(off)
+  if (any(!ok)) message("  ", sum(!ok), " detected cores are not on a map position (detected_core ",
+                        paste(cores$detected_core[!ok], collapse = ", "), ")")
+  ## expected centre of every map position, for the dearray plot
+  pos <- map_s[, c("core_id", "core_row", "core_col")]
+  pc <- A %*% rbind(match(as.character(pos$core_col), col_levels), match(as.character(pos$core_row), row_levels)) + b
+  attr(cores, "expected") <- data.frame(pos, x = pc[1, ], y = pc[2, ])
+  cores
+}
+
 ## TMA row names: 1 -> A, 26 -> Z, 27 -> AA, ...
 LETTERS_EXT <- function(i) {
   vapply(i, function(k) {

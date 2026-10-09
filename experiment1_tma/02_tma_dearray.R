@@ -20,8 +20,12 @@
 ##      `rotate` in slides.csv (degrees to turn it LEFT: 90, 180, 270), and
 ##      row_flip / col_flip to count from the other side. A slightly tilted
 ##      grid is straightened automatically. The grid inference MUST be checked
-##      on the labelled plot (missing edge rows shift labels). Fix any
-##      mistakes with config/core_overrides.csv:
+##      on the labelled plot (missing edge rows shift labels).
+##      Most reliable: config/core_anchors.csv (slide_id,core_id,x_um,y_um) --
+##      3+ cores you identified on the plot, e.g. three corners; every other
+##      core's map position is computed from them (rotation and tilt included),
+##      and the plot marks where each map position is expected (blue +).
+##      Fix single mistakes with config/core_overrides.csv:
 ##         slide_id,detected_core,core_row,core_col
 ##
 ## Core definitions are saved once (tables/02_cores_<slide>.csv) and reused
@@ -43,6 +47,11 @@ slides <- read_slides()
 tma_map <- read_tma_map()
 meta <- xen[[]]
 
+anchors_path <- file.path(CONFIG_DIR, "core_anchors.csv")
+anchors <- if (file.exists(anchors_path)) {
+  read_config_csv(anchors_path, stringsAsFactors = FALSE, colClasses = c(slide_id = "character", core_id = "character"))
+} else NULL
+
 overrides_path <- file.path(CONFIG_DIR, "core_overrides.csv")
 overrides <- if (file.exists(overrides_path)) {
   read_config_csv(overrides_path, stringsAsFactors = FALSE, colClasses = "character")
@@ -56,6 +65,8 @@ for (i in seq_len(nrow(slides))) {
   in_slide <- meta$slide_id == sid
   cores_file <- file.path(TABLES_DIR, paste0("02_cores_", sid, ".csv"))
   sel_dir <- file.path(CONFIG_DIR, "core_selections", sid)
+  expected <- NULL
+  unmatched_plot <- NULL
   map_s <- tma_map[tma_map$slide_id == sid, ]
   if (nrow(map_s) == 0) stop("No rows for slide ", sid, " in tma_map.csv")
 
@@ -100,14 +111,23 @@ for (i in seq_len(nrow(slides))) {
     ## Use cells with some signal so empty debris segments don't bridge cores.
     use <- in_slide & meta$nCount_Xenium >= MIN_COUNTS
     cores <- detect_cores(meta$x_um[use], meta$y_um[use])
-    cores <- assign_grid(
-      cores,
-      row_levels = sort_levels(map_s$core_row),
-      col_levels = sort_levels(map_s$core_col),
-      row_flip = isTRUE(slides$row_flip[i]),
-      col_flip = isTRUE(slides$col_flip[i]),
-      rotate = slides$rotate[i]
-    )
+    anc <- if (!is.null(anchors)) anchors[anchors$slide_id == sid, ] else NULL
+    if (!is.null(anc) && nrow(anc) > 0) {
+      message(sid, ": map positions from ", nrow(anc), " anchor cores (config/core_anchors.csv)")
+      cores <- assign_grid_anchors(cores, anc, map_s,
+                                   row_levels = sort_levels(map_s$core_row),
+                                   col_levels = sort_levels(map_s$core_col))
+    } else {
+      cores <- assign_grid(
+        cores,
+        row_levels = sort_levels(map_s$core_row),
+        col_levels = sort_levels(map_s$core_col),
+        row_flip = isTRUE(slides$row_flip[i]),
+        col_flip = isTRUE(slides$col_flip[i]),
+        rotate = slides$rotate[i]
+      )
+    }
+    expected <- attr(cores, "expected")
     if (!is.null(overrides)) {
       ov <- overrides[overrides$slide_id == sid, ]
       for (j in seq_len(nrow(ov))) {
@@ -136,6 +156,7 @@ for (i in seq_len(nrow(slides))) {
               paste(unmatched$detected_core, collapse = ", "), ") -- cells there are dropped.")
     }
     utils::write.csv(cores, cores_file, row.names = FALSE)
+    unmatched_plot <- unmatched
     cores <- cores[!is.na(cores$core_id), ]
     meta$core_id[in_slide] <- assign_cells_to_cores(meta$x_um[in_slide], meta$y_um[in_slide], cores)
   }
@@ -154,7 +175,19 @@ for (i in seq_len(nrow(slides))) {
     paste0(short_id, "\n(", lab$core_row, lab$core_col, ", #", lab$detected_core, ")")
   } else short_id
   p_dearray <- ggplot(d, aes(x_um, y_um)) +
-    geom_point(aes(color = core_label), size = 0.05, stroke = 0) +
+    geom_point(aes(color = core_label), size = 0.05, stroke = 0)
+  if (!is.null(expected)) {         # anchor mode: where every map position should be
+    p_dearray <- p_dearray +
+      geom_point(data = expected, aes(x, y), shape = 3, size = 2, colour = "#2a78d6") +
+      geom_text(data = expected, aes(x, y, label = paste0(core_row, core_col)), colour = "#2a78d6",
+                size = 2, vjust = 2.2)
+  }
+  if (!is.null(unmatched_plot) && nrow(unmatched_plot) > 0) {   # detected, but no map position
+    p_dearray <- p_dearray +
+      geom_text(data = unmatched_plot, aes(x_center, y_center, label = paste0("#", detected_core, "\nno map")),
+                colour = "#b00000", size = 2.5, fontface = "bold")
+  }
+  p_dearray <- p_dearray +
     geom_text(data = lab, aes(x_center, y_center, label = text), size = 2.5, fontface = "bold") +
     scale_color_manual(values = c(core = "grey60", unassigned = "red")) +
     scale_y_reverse() + coord_fixed() + theme_bw() +
