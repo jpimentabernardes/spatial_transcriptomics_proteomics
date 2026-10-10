@@ -81,7 +81,10 @@ H&E (Xenium slide) ─► 07 register H&E → Xenium (--mode he) ─► QuPath r
 3. Set `EXP1_PROJECT_DIR` (data/output root) and run R scripts from inside `experiment1_tma/`:
    ```
    export EXP1_PROJECT_DIR=/work_beegfs/sukmb430/Spatial_TMA
-   Rscript 01_xenium_object_prep.R && Rscript 02_tma_dearray.R      # then CHECK figures/02_dearray_*.png
+   Rscript 01_xenium_object_prep.R
+   # TMA grid: QuPath TMA dearrayer on the Xenium morphology image + qupath/export_tma_grid.groovy
+   #           -> config/core_grid/<slide_id>.csv (otherwise 02 finds the grid itself)
+   Rscript 02_tma_dearray.R                                           # then CHECK figures/02_dearray_*.png
    python 03a_segment_cellpose.py --slide-id ... --cores-csv $EXP1_PROJECT_DIR/tables/02_cores_all.csv ...
    python 03b_segment_segger.py --slide-id <slide> --xenium-dir <xenium_outs> --project-dir $EXP1_PROJECT_DIR --segger-repo <segger clone>
    python 03d_segger_priors.py --slide-id <slide> --xenium-dir <xenium_outs> --project-dir $EXP1_PROJECT_DIR --segger-repo <segger clone>   # GPU; needs 03a --save-masks

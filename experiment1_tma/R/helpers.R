@@ -507,6 +507,53 @@ assign_grid_dir <- function(cores, map_s, letters_dir = "down", numbers_dir = "l
   cores
 }
 
+## TMA grid exported from QuPath (qupath/export_tma_grid.groovy), one CSV per
+## slide in config/core_grid/<slide_id>.csv. Also reads QuPath's own TMA
+## measurement export (columns Name, Missing, Centroid X/Y um). Core names are
+## matched to tma_map.csv ignoring case and separators: "a-1", "A1", "1-a" and
+## "ORG_a1" all find core_row 1 / core_col a (or the core_id itself).
+read_qupath_grid <- function(path, map_s, sid) {
+  g <- read_config_csv(path, stringsAsFactors = FALSE, check.names = FALSE)
+  pick <- function(pats) {
+    hit <- which(vapply(colnames(g), function(cn) any(grepl(pats, cn, ignore.case = TRUE)), logical(1)))
+    if (length(hit)) colnames(g)[hit[1]] else NA_character_
+  }
+  c_name <- pick("^(core_name|name)$")
+  c_x <- pick("^x_um$|^centroid x")
+  c_y <- pick("^y_um$|^centroid y")
+  if (anyNA(c(c_name, c_x, c_y))) {
+    stop(path, ": needs columns core_name (or Name), x_um, y_um (or Centroid X/Y um); found: ",
+         paste(colnames(g), collapse = ", "))
+  }
+  c_d <- pick("^diameter_um$|^diameter")
+  c_m <- pick("^missing$")
+  norm <- function(x) tolower(gsub("[^A-Za-z0-9]", "", as.character(x)))
+  keys <- rbind(
+    data.frame(key = norm(map_s$core_id), core_id = map_s$core_id),
+    data.frame(key = norm(paste0(map_s$core_row, map_s$core_col)), core_id = map_s$core_id),
+    data.frame(key = norm(paste0(map_s$core_col, map_s$core_row)), core_id = map_s$core_id),
+    data.frame(key = norm(sub(paste0("^", sid, "_"), "", map_s$core_id)), core_id = map_s$core_id))
+  keys <- keys[!duplicated(keys$key), ]
+  missing <- if (!is.na(c_m)) tolower(as.character(g[[c_m]])) %in% c("true", "t", "yes", "1") else FALSE
+  cores <- data.frame(core_name = as.character(g[[c_name]]),
+                      x_center = as.numeric(g[[c_x]]), y_center = as.numeric(g[[c_y]]),
+                      missing = missing, stringsAsFactors = FALSE)
+  cores$core_id <- keys$core_id[match(norm(cores$core_name), keys$key)]
+  spacing <- if (nrow(cores) > 1) stats::median(RANN::nn2(cores[, c("x_center", "y_center")], k = 2)$nn.dists[, 2]) else NA
+  cores$radius <- if (!is.na(c_d)) as.numeric(g[[c_d]]) / 2 else 0.35 * spacing
+  cores$detected_core <- seq_len(nrow(cores))
+  message(sprintf("  QuPath grid %s: %d cores (%d missing), spacing %.0f um, median diameter %.0f um",
+                  basename(path), nrow(cores), sum(cores$missing), spacing, 2 * stats::median(cores$radius)))
+  bad <- cores$core_name[!cores$missing & is.na(cores$core_id)]
+  if (length(bad)) {
+    warning(sid, ": QuPath core names not in tma_map.csv (left out): ", paste(utils::head(bad, 20), collapse = ", "),
+            if (length(bad) > 20) " ..." else "", ". Set the dearrayer's row/column labels like the map.")
+  }
+  dup <- unique(cores$core_id[!is.na(cores$core_id) & duplicated(cores$core_id)])
+  if (length(dup)) warning(sid, ": several QuPath cores with the same name: ", paste(dup, collapse = ", "))
+  cores
+}
+
 ## Grid from ANCHOR cores (config/core_anchors.csv: slide_id, core_id, x_um, y_um):
 ## three or more cores you identified on the dearray plot, e.g. the corners a1,
 ## j1 and a10, with their centres read off the micron axes. The map position of

@@ -10,6 +10,11 @@
 ## whole section then becomes one sample ("whole-section mode", C below).
 ##
 ## Two ways to define cores on a TMA (per slide, picked automatically):
+##   D. QuPath grid (recommended for real TMAs) -- if config/core_grid/<slide_id>.csv
+##      exists: the TMA grid made with QuPath's TMA dearrayer on the Xenium
+##      morphology image and exported with qupath/export_tma_grid.groovy (core
+##      name, centre, diameter, missing). Core names are matched to tma_map.csv
+##      ("a-1", "a1", "1-a" or the core_id all work); missing cores are skipped.
 ##   A. Polygon mode -- if config/core_selections/<slide_id>/ exists: one CSV
 ##      per core (file name = core_id) with X,Y vertices in microns, e.g.
 ##      drawn with Xenium Explorer's lasso and "Download selection
@@ -36,7 +41,7 @@
 ## core_overrides.csv or the DBSCAN parameters. The same file drives per-core cropping in 03a
 ## and per-core registration in 07.
 ##
-## INPUT : xenium_<seg>_raw.rds (01), config/tma_map.csv
+## INPUT : xenium_<seg>_raw.rds (01), config/tma_map.csv, [config/core_grid/<slide>.csv]
 ## OUTPUT: xenium_<seg>_cores.rds (cells in included cores, QC-passing)
 ##         tables/02_cores_<slide>.csv, tables/02_core_qc.csv
 ## =============================================================================
@@ -67,6 +72,7 @@ for (i in seq_len(nrow(slides))) {
   in_slide <- meta$slide_id == sid
   cores_file <- file.path(TABLES_DIR, paste0("02_cores_", sid, ".csv"))
   sel_dir <- file.path(CONFIG_DIR, "core_selections", sid)
+  qp_file <- file.path(CONFIG_DIR, "core_grid", paste0(sid, ".csv"))
   expected <- NULL
   unmatched_plot <- NULL
   anc_s <- if (!is.null(anchors)) anchors[anchors$slide_id == sid, ] else NULL
@@ -89,6 +95,22 @@ for (i in seq_len(nrow(slides))) {
                         radius = max(sqrt((xs - cx)^2 + (ys - cy)^2)),
                         xmin = min(xs), xmax = max(xs), ymin = min(ys), ymax = max(ys))
     message(sid, ": one row in tma_map.csv -> whole-section mode, all cells = ", cid)
+
+  } else if (file.exists(qp_file)) {
+    ## ---- D. grid from QuPath (TMA dearrayer, qupath/export_tma_grid.groovy) --
+    ## core names and centres come from QuPath; cells go to the nearest core
+    ## centre within CORE_MAX_DIST_FACTOR x the core radius
+    message(sid, ": TMA grid from QuPath (", qp_file, ")")
+    cores <- read_qupath_grid(qp_file, map_s, sid)
+    half <- cores$radius * CORE_MAX_DIST_FACTOR
+    cores$xmin <- cores$x_center - half; cores$xmax <- cores$x_center + half
+    cores$ymin <- cores$y_center - half; cores$ymax <- cores$y_center + half
+    utils::write.csv(cores, cores_file, row.names = FALSE)
+    unmatched_plot <- cores[is.na(cores$core_id) & !cores$missing, ]
+    if (nrow(unmatched_plot)) unmatched_plot$detected_core <- unmatched_plot$core_name
+    cores <- cores[!is.na(cores$core_id) & !cores$missing, ]
+    meta$core_id[in_slide] <- assign_cells_to_cores(meta$x_um[in_slide], meta$y_um[in_slide], cores)
+    cores$detected_core <- NULL                     # labels on the plot: QuPath name = core id
 
   } else if (dir.exists(sel_dir)) {
     ## ---- A. polygon mode --------------------------------------------------
