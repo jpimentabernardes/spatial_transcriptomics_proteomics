@@ -107,8 +107,10 @@ read_tma_map <- function(path = TMA_MAP_CSV) {
   need <- c("slide_id", "core_row", "core_col", "core_id", "patient_id", "organ")
   stopifnot("tma_map.csv is missing required columns" = all(need %in% colnames(m)))
   for (opt in c("tissue_type", "diagnosis", "location")) if (!opt %in% colnames(m)) m[[opt]] <- NA_character_
+  ## a core is excluded only when you say so: FALSE / F / no / n / 0; anything else
+  ## (TRUE, yes, 1, x, empty) keeps it
   if (!"include" %in% colnames(m)) m$include <- TRUE
-  m$include <- as.logical(m$include) %in% TRUE
+  m$include <- !(tolower(trimws(as.character(m$include))) %in% c("false", "f", "no", "n", "0"))
   m$core_row <- as.character(m$core_row)
   m$core_col <- as.character(m$core_col)
   dup <- m$core_id[duplicated(m$core_id)]
@@ -435,19 +437,22 @@ grid_angle <- function(xy) {
 }
 
 ## 1-D grouping of core centres into rows (or columns): a new group starts at a
-## gap > `gap`; groups are numbered by their distance from the first one in
-## units of the pitch, so an empty row in the middle keeps the numbering right.
+## gap > `gap`. Groups are numbered one after the other; a position is skipped
+## only where the gap to the next group is clearly wider than usual (> 1.7 x the
+## median spacing, i.e. a whole empty row), so uneven spacing never skips one.
 axis_index <- function(v, gap) {
   o <- order(v)
   sv <- v[o]
   grp <- cumsum(c(1, diff(sv) > gap))
   centres <- as.numeric(tapply(sv, grp, mean))
   d <- diff(centres)
-  pitch <- if (length(d) > 0) stats::median(d[d <= 1.5 * stats::median(d)]) else 1
-  idx <- round((centres - centres[1]) / pitch) + 1
+  pitch <- if (length(d) > 0) stats::median(d) else 1
+  step <- if (length(d) > 0) ifelse(d > 1.7 * pitch, pmax(1, round(d / pitch)), 1) else integer(0)
+  idx <- c(1, 1 + cumsum(step))
   out <- integer(length(v))
   out[o] <- idx[grp]
-  list(index = out, n_groups = length(centres), n_positions = max(idx), pitch = pitch)
+  list(index = out, n_groups = length(centres), n_positions = max(idx), pitch = pitch,
+       spacing = round(d), sizes = as.integer(table(grp)))
 }
 
 ## Core grid position -> row / column labels of tma_map.csv, from the direction
@@ -486,6 +491,8 @@ assign_grid_dir <- function(cores, map_s, letters_dir = "down", numbers_dir = "l
     kind <- if (is_letters(lev)) "letters" else "numbers"
     message(sprintf("  %s (%s) run %s: %d positions with cores, map has %d (%s ... %s)", kind, col, dir_of[[col]],
                     ax$n_positions, length(lev), lev[1], lev[length(lev)]))
+    message("    cores per position: ", paste(ax$sizes, collapse = " "),
+            "\n    spacing between positions (um): ", paste(ax$spacing, collapse = " "))
     if (ax$n_positions > length(lev)) {
       warning(sprintf("%d %s positions with cores, but tma_map.csv has only %d %s (%s-%s): cores beyond %s get no id. ",
                       ax$n_positions, kind, length(lev), kind, lev[1], lev[length(lev)], lev[length(lev)]),

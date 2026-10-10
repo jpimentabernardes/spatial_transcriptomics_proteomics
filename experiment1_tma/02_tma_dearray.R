@@ -260,7 +260,12 @@ save_fig(p_core_qc, "02_core_qc_median_counts", width = 16, height = 6)
 ## -----------------------------------------------------------------------
 xen$core_flag <- core_qc$core_flag[match(xen$core_id, core_qc$core_id)]
 keep <- colnames(xen)[!is.na(xen$core_id) & xen$qc_pass & xen$include %in% TRUE]
-message("Keeping ", length(keep), " of ", ncol(xen), " cells.")
+message("Keeping ", length(keep), " of ", ncol(xen), " cells (in a core: ", sum(!is.na(xen$core_id)),
+        ", QC pass: ", sum(xen$qc_pass), ", in an included core: ", sum(xen$include %in% TRUE), ").")
+if (length(keep) == 0) {
+  stop("No cell left. Check the counts above: no cell in a core -> the dearraying (plots 02_dearray_*); ",
+       "none in an included core -> the include column of tma_map.csv (FALSE/no/0 excludes a core).")
+}
 xen <- subset(xen, cells = keep)
 
 saveRDS(xen, obj_path("cores"))
