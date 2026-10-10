@@ -33,7 +33,8 @@ local({
                           "Slc26a3", "Car4", "Agr2", "Muc2", "Lyz1", "Defa5", "Mmp7", "Dclk1", "Trpm5",
                           "Chga", "Cd3d", "Cd4", "Cd8a", "Foxp3", "Il7r", "Ccr5", "Gzmb", "Ncam1",
                           "Cd79a", "Ighm", "Xcr1", "Itgax", "Itgam", "Csf1r", "Fcgr1", "Ly6c1", "Ly6g", "Siglecf"),
-    CLUSTER_TO_CELLTYPE = NULL, CLUSTER_TO_LINEAGE = NULL
+    CLUSTER_TO_CELLTYPE = NULL, CLUSTER_TO_LINEAGE = NULL,
+    TMA_LETTERS_DIRECTION = "down", TMA_NUMBERS_DIRECTION = "left"
   )
   added <- character(0)
   for (k in names(defaults)) {
@@ -98,8 +99,6 @@ read_slides <- function(path = SLIDES_CSV) {
   for (col in c("row_flip", "col_flip", "cs_row_flip", "cs_col_flip")) {
     if (col %in% colnames(s)) s[[col]] <- as.logical(s[[col]]) %in% TRUE
   }
-  if (!"rotate" %in% colnames(s)) s$rotate <- 0
-  s$rotate[is.na(s$rotate) | s$rotate == ""] <- 0
   s
 }
 
@@ -422,20 +421,6 @@ assign_cells_to_cores <- function(x, y, cores, factor = CORE_MAX_DIST_FACTOR) {
   out
 }
 
-## Rotation of the slide relative to the TMA map (slides.csv column `rotate`):
-## how far to turn the image to the LEFT (counter-clockwise) so it looks like
-## the map -- 0, 90, 180 or 270 ("left" = 90, "right" = 270 = -90).
-## Image coordinates (y grows downwards): after turning left by 90, the old
-## top-right corner is the new top-left one.
-rotate_xy <- function(x, y, rotate = 0) {
-  r <- tolower(trimws(as.character(rotate)))
-  r <- if (is.na(r) || r %in% c("", "na")) 0 else if (r == "left") 90 else if (r == "right") 270 else as.numeric(r)
-  r <- ((r %% 360) + 360) %% 360
-  switch(as.character(r),
-         "0" = cbind(x, y), "90" = cbind(y, -x), "180" = cbind(-x, -y), "270" = cbind(-y, x),
-         stop("rotate must be 0, 90, 180 or 270 (degrees to the left), or left / right; got ", rotate))
-}
-
 ## Angle of the core grid (radians, -45..45 deg): TMAs are rarely placed exactly
 ## straight. From the directions to each core's nearest neighbours (4-fold
 ## symmetric, so rows and columns both count).
@@ -465,30 +450,53 @@ axis_index <- function(v, gap) {
   list(index = out, n_groups = length(centres), n_positions = max(idx), pitch = pitch)
 }
 
-## Core grid position -> row / column labels of tma_map.csv.
-##   rotate      turn the slide this far to the LEFT first (see rotate_xy)
-##   row/col_flip  then count rows from the bottom / columns from the right
-## After rotation the first row is at the TOP and the first column at the LEFT.
-## A tilted grid is straightened first. ALWAYS check the labelled plot.
-assign_grid <- function(cores, row_levels, col_levels, row_flip = FALSE, col_flip = FALSE, rotate = 0) {
-  xy <- rotate_xy(cores$x_center, cores$y_center, rotate)
+## Core grid position -> row / column labels of tma_map.csv, from the direction
+## in which the LETTERS and the NUMBERS of the map run on the image as plotted
+## (y grows downwards): "down", "up", "left" or "right". One must be vertical and
+## one horizontal. E.g. letters "down" + numbers "left": a1 is the top-right
+## core, b1 the one below it, a2 the one to its left. Whichever of core_row /
+## core_col holds the letters is found from tma_map.csv. A slightly tilted grid
+## is straightened first; rows / columns are told apart by the gaps between
+## cores, so an empty row in the middle keeps the numbering right. ALWAYS check
+## the labelled plot.
+assign_grid_dir <- function(cores, map_s, letters_dir = "down", numbers_dir = "left") {
+  dirs <- c(letters_dir, numbers_dir)
+  vertical <- dirs %in% c("down", "up")
+  if (!all(dirs %in% c("down", "up", "left", "right")) || sum(vertical) != 1) {
+    stop("TMA_LETTERS_DIRECTION / TMA_NUMBERS_DIRECTION must be down/up/left/right, one vertical and one ",
+         "horizontal; got letters ", letters_dir, ", numbers ", numbers_dir)
+  }
+  is_letters <- function(v) all(grepl("^[A-Za-z]+$", as.character(v)))
+  lev_row <- sort_levels(map_s$core_row)
+  lev_col <- sort_levels(map_s$core_col)
+  if (is_letters(lev_row) == is_letters(lev_col)) {
+    stop("tma_map.csv: expected letters in one of core_row / core_col and numbers in the other; got core_row ",
+         paste(utils::head(lev_row, 3), collapse = ","), "... and core_col ", paste(utils::head(lev_col, 3), collapse = ","), "...")
+  }
+  dir_of <- if (is_letters(lev_row)) c(core_row = letters_dir, core_col = numbers_dir) else
+    c(core_row = numbers_dir, core_col = letters_dir)
+  xy <- cbind(cores$x_center, cores$y_center)
   th <- grid_angle(xy)
   ds <- cbind(xy[, 1] * cos(th) + xy[, 2] * sin(th), -xy[, 1] * sin(th) + xy[, 2] * cos(th))
   gap <- if (nrow(ds) > 1) 0.5 * stats::median(RANN::nn2(ds, k = 2)$nn.dists[, 2]) else 1
-  r <- axis_index(ds[, 2], gap)
-  c <- axis_index(ds[, 1], gap)
-  message(sprintf("  grid: rotate %s, tilt %.1f deg straightened; %d rows found (map: %d), %d columns found (map: %d)",
-                  rotate, th * 180 / pi, r$n_positions, length(row_levels), c$n_positions, length(col_levels)))
-  if (r$n_positions != length(row_levels) || c$n_positions != length(col_levels)) {
-    warning("Detected rows/columns differ from tma_map.csv (empty edge rows, merged or missing cores?). ",
-            "Labels may be shifted -- check the dearray plot and use config/core_overrides.csv if needed.")
+  along <- function(d) switch(d, down = ds[, 2], up = -ds[, 2], right = ds[, 1], left = -ds[, 1])
+  for (col in c("core_row", "core_col")) {
+    lev <- if (col == "core_row") lev_row else lev_col
+    ax <- axis_index(along(dir_of[[col]]), gap)
+    kind <- if (is_letters(lev)) "letters" else "numbers"
+    message(sprintf("  %s (%s) run %s: %d positions with cores, map has %d (%s ... %s)", kind, col, dir_of[[col]],
+                    ax$n_positions, length(lev), lev[1], lev[length(lev)]))
+    if (ax$n_positions > length(lev)) {
+      warning(sprintf("%d %s positions with cores, but tma_map.csv has only %d %s (%s-%s): cores beyond %s get no id. ",
+                      ax$n_positions, kind, length(lev), kind, lev[1], lev[length(lev)], lev[length(lev)]),
+              "Add the missing positions to tma_map.csv.")
+    } else if (ax$n_positions < length(lev)) {
+      message("    (fewer than in the map: fine if the last ones are empty; if the FIRST one is empty, labels are shifted",
+              " -- use config/core_anchors.csv)")
+    }
+    cores[[col]] <- lev[ax$index]                   # NA beyond the map
   }
-  ri <- r$index
-  ci <- c$index
-  if (row_flip) ri <- max(ri) + 1L - ri
-  if (col_flip) ci <- max(ci) + 1L - ci
-  cores$core_row <- row_levels[ri]          # NA beyond the map
-  cores$core_col <- col_levels[ci]
+  message(sprintf("  tilt %.1f deg straightened", th * 180 / pi))
   cores
 }
 

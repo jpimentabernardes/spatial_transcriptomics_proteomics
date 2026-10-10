@@ -70,6 +70,12 @@ QC_MAP_POINT_SIZE <- 0.3     # bigger = denser-looking tissue
 QC_MAP_MAX_CELLS  <- 1e6     # cells drawn per figure (random subsample above this)
 
 ## -----------------------------------------------------------------------
+## TMA dearraying (02). Direction in which the letters and the numbers of
+## tma_map.csv run on the image AS PLOTTED in figures/02_dearray_<slide>.png
+## (down / up / left / right; one vertical, one horizontal):
+## down + left = a1 is the top-right core, b1 is below a1, a2 is left of a1.
+TMA_LETTERS_DIRECTION <- "down"
+TMA_NUMBERS_DIRECTION <- "left"
 ## TMA dearraying (02). Cores are usually 0.6-2 mm diameter with >= 200 um
 ## gaps; if neighbouring cores get merged, set a fixed DBSCAN_EPS_UM below the gap.
 ## -----------------------------------------------------------------------

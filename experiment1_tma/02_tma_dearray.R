@@ -16,11 +16,12 @@
 ##      coordinates". Most accurate; use it for torn/irregular tumour cores.
 ##   B. Automatic mode -- DBSCAN on cell centroids finds cores, rows/columns
 ##      are inferred from the core positions and matched to core_row/core_col
-##      in tma_map.csv. If the slide is turned relative to the map, set
-##      `rotate` in slides.csv (degrees to turn it LEFT: 90, 180, 270), and
-##      row_flip / col_flip to count from the other side. A slightly tilted
-##      grid is straightened automatically. The grid inference MUST be checked
-##      on the labelled plot (missing edge rows shift labels).
+##      in tma_map.csv. Set the direction in which the map's letters and
+##      numbers run on the image AS PLOTTED in config.R (TMA_LETTERS_DIRECTION,
+##      TMA_NUMBERS_DIRECTION; e.g. down + left = a1 top-right, b1 below it,
+##      a2 to its left). A slightly tilted grid is straightened automatically.
+##      The result MUST be checked on the labelled plot (an empty first row or
+##      column shifts labels).
 ##      Most reliable: config/core_anchors.csv (slide_id,core_id,x_um,y_um) --
 ##      3+ cores you identified on the plot, e.g. three corners; every other
 ##      core's map position is computed from them (rotation and tilt included),
@@ -30,8 +31,9 @@
 ##
 ## Core definitions are saved once (tables/02_cores_<slide>.csv) and reused
 ## when you re-run with another segmentation, so core identity never depends
-## on the segmentation method. DELETE that file to re-dearray (e.g. after
-## editing core_overrides.csv or the DBSCAN parameters). The same file drives per-core cropping in 03a
+## on the segmentation method. Changing the grid directions or the anchors
+## re-dearrays automatically; DELETE that file to re-dearray after editing
+## core_overrides.csv or the DBSCAN parameters. The same file drives per-core cropping in 03a
 ## and per-core registration in 07.
 ##
 ## INPUT : xenium_<seg>_raw.rds (01), config/tma_map.csv
@@ -67,6 +69,10 @@ for (i in seq_len(nrow(slides))) {
   sel_dir <- file.path(CONFIG_DIR, "core_selections", sid)
   expected <- NULL
   unmatched_plot <- NULL
+  anc_s <- if (!is.null(anchors)) anchors[anchors$slide_id == sid, ] else NULL
+  grid_mode <- if (!is.null(anc_s) && nrow(anc_s) > 0) {
+    paste("anchors", paste(anc_s$core_id, anc_s$x_um, anc_s$y_um, collapse = ";"))
+  } else paste("letters", TMA_LETTERS_DIRECTION, "numbers", TMA_NUMBERS_DIRECTION)
   map_s <- tma_map[tma_map$slide_id == sid, ]
   if (nrow(map_s) == 0) stop("No rows for slide ", sid, " in tma_map.csv")
 
@@ -99,8 +105,11 @@ for (i in seq_len(nrow(slides))) {
     }))
     message(sid, ": polygon mode, ", nrow(cores), " cores.")
 
-  } else if (file.exists(cores_file)) {
+  } else if (file.exists(cores_file) &&
+             identical(utils::read.csv(cores_file, nrows = 1)$grid_mode, grid_mode)) {
     ## ---- previously defined cores (e.g. re-run with another segmentation) --
+    ## reused only while the grid settings are the same; change them (or the
+    ## anchors) and the slide is dearrayed again
     cores <- utils::read.csv(cores_file, stringsAsFactors = FALSE)
     cores <- cores[!is.na(cores$core_id), ]
     meta$core_id[in_slide] <- assign_cells_to_cores(meta$x_um[in_slide], meta$y_um[in_slide], cores)
@@ -118,15 +127,10 @@ for (i in seq_len(nrow(slides))) {
                                    row_levels = sort_levels(map_s$core_row),
                                    col_levels = sort_levels(map_s$core_col))
     } else {
-      cores <- assign_grid(
-        cores,
-        row_levels = sort_levels(map_s$core_row),
-        col_levels = sort_levels(map_s$core_col),
-        row_flip = isTRUE(slides$row_flip[i]),
-        col_flip = isTRUE(slides$col_flip[i]),
-        rotate = slides$rotate[i]
-      )
+      message(sid, ": letters run ", TMA_LETTERS_DIRECTION, ", numbers run ", TMA_NUMBERS_DIRECTION, " (config.R)")
+      cores <- assign_grid_dir(cores, map_s, TMA_LETTERS_DIRECTION, TMA_NUMBERS_DIRECTION)
     }
+    cores$grid_mode <- grid_mode
     expected <- attr(cores, "expected")
     if (!is.null(overrides)) {
       ov <- overrides[overrides$slide_id == sid, ]
