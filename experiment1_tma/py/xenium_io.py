@@ -101,7 +101,12 @@ def find_morphology_channels(xenium_dir: str) -> dict:
         single = os.path.join(xenium_dir, "morphology_focus.ome.tif")
         if os.path.exists(single):
             return {"dapi": single, "boundary": None, "interior_rna": None, "interior_protein": None}
-        raise FileNotFoundError(f"No morphology_focus images in {xenium_dir}")
+        inside = sorted(os.path.dirname(os.path.dirname(f)) for f in
+                        glob.glob(os.path.join(xenium_dir, "*", "morphology_focus", "*.ome.tif")))
+        hint = ("\n  This folder CONTAINS Xenium output folders -- give the one of this slide (as in slides.csv):\n    "
+                + "\n    ".join(sorted(set(inside)))) if inside else \
+            "\n  xenium_dir must be the Xenium output folder of ONE slide (output-XETG..., with morphology_focus/ inside)."
+        raise FileNotFoundError(f"No morphology_focus images in {xenium_dir}{hint}")
     out = {"dapi": files[0], "boundary": None, "interior_rna": None, "interior_protein": None}
     for f in files:
         b = os.path.basename(f).lower()
