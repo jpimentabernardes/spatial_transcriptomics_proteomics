@@ -98,6 +98,9 @@ def parse_args(argv=None):
     p.add_argument("--skip-build", action="store_true", help="reuse the input folders of an earlier run")
     p.add_argument("--skip-segment", action="store_true", help="reuse segger output; redo convert + attribute")
     p.add_argument("--skip-export", action="store_true", help="no boundary export (cell areas stay NA)")
+    p.add_argument("--tiling", default="auto", choices=["auto", "adaptive", "square"],
+                   help="segger tiling: auto = quadtree, square tiles if cuSpatial fails; adaptive; square")
+    p.add_argument("--tile-um", type=float, default=None, help="side of square tiles in um (default: from density)")
     p.add_argument("--min-qv", type=float, default=20.0)
     return p.parse_args(argv)
 
@@ -485,7 +488,7 @@ def main(argv=None):
             raw = os.path.join(work, f"raw_{p}")
             os.makedirs(raw, exist_ok=True)
             print(f"\n===== segger from the {p} segmentation =====")
-            rc = seg.run([pixi, "run", "--frozen", "-e", a.pixi_env, "segger", "segment", "-i", os.path.join(work, f"input_{p}"),
+            rc = seg.run([*seg.segment_cmd(pixi, a.pixi_env, env, a.tiling, a.tile_um), "-i", os.path.join(work, f"input_{p}"),
                           "-o", raw, *shlex.split(a.segger_options)], cwd=repo, env=env,
                          log=os.path.join(raw, "segger_segment.log"))
             if rc != 0:

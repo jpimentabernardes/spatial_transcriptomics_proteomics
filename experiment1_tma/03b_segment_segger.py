@@ -18,6 +18,11 @@ runs anywhere: skip_segment=True + skip_export=True redoes only the conversion.
 re-solved -- compute nodes have no internet, and a re-solve there fails with
 "Failed to fetch ... Network unreachable".
 
+Large slides: cuSpatial can fail to build segger's tiling quadtree ("cuSpatial invalid
+quadtree ... segger issue #40"). Step 1 therefore runs segger through py/segger_tiling.py,
+which falls back to square tiles in that case (tiling="auto"; "square" to use them always,
+tile_um to set their side length).
+
 One-time install of segger (the login node is fine; it does not need the GPU):
   curl -fsSL https://pixi.sh/install.sh | sh  &&  source ~/.bashrc
   git clone https://github.com/dpeerlab/segger.git /work/.../segger
@@ -61,6 +66,11 @@ def parse_args():
                    help="reuse an existing segger_segmentation.parquet; only redo export + conversion")
     p.add_argument("--skip-export", action="store_true", help="no boundary export (cell areas stay NA)")
     p.add_argument("--cores-csv", default=None, help="default: <project>/tables/02_cores_all.csv")
+    p.add_argument("--tiling", default="auto", choices=["auto", "adaptive", "square"],
+                   help="how segger cuts the slide into tiles: auto = its quadtree, square tiles if cuSpatial "
+                        "fails ('invalid quadtree', large slides); adaptive = quadtree only; square = square only")
+    p.add_argument("--tile-um", type=float, default=None,
+                   help="side length of square tiles in um (default: from the transcript density)")
     p.add_argument("--min-transcripts", type=int, default=1)
     p.add_argument("--min-qv", type=float, default=20.0)
     return p.parse_args()
@@ -109,6 +119,15 @@ def cuda_env(repo, pixi_env):
         print("WARNING: no nvidia/*/lib folders in the segger environment -- is it installed (pixi install -e "
               f"{pixi_env})? If segger then fails on libcudart.so.12, load the cluster's CUDA 12 module.")
     return env
+
+
+def segment_cmd(pixi, pixi_env, env, tiling="auto", tile_um=None):
+    """`segger segment` started through py/segger_tiling.py (square-tile fallback for cuSpatial's
+    'invalid quadtree' error on large slides). Sets its settings in env; returns the command start."""
+    env["SEGGER_TILING"] = tiling
+    env["SEGGER_TILE_UM"] = "" if tile_um is None else str(tile_um)
+    return [pixi, "run", "--frozen", "-e", pixi_env, "python", os.path.join(HERE, "py", "segger_tiling.py"),
+            "segment"]
 
 
 def run(cmd, cwd, env=None, log=None, every_s=30, tail=25):
@@ -190,7 +209,7 @@ def main():
         print(f"skip_segment: reusing {seg_parquet}")
     else:
         gpu_report()
-        rc = run([pixi, "run", "--frozen", "-e", a.pixi_env, "segger", "segment", "-i", a.xenium_dir, "-o", raw_out,
+        rc = run([*segment_cmd(pixi, a.pixi_env, env, a.tiling, a.tile_um), "-i", a.xenium_dir, "-o", raw_out,
                   *shlex.split(a.segger_options)], cwd=repo, env=env,
                  log=os.path.join(raw_out, "segger_segment.log"))
         if rc != 0:
