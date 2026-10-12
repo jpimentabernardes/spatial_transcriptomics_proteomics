@@ -37,15 +37,15 @@ CORES_CSV="${PROJECT_DIR}/tables/02_cores_all.csv"
 mkdir -p "${RAW_OUT}" "${COMMON_OUT}"
 
 echo "== segger segment: ${SLIDE_ID}"
-( cd "${SEGGER_REPO}" && pixi run -e cuda121 segger segment -i "${XENIUM_DIR}" -o "${RAW_OUT}" )
+( cd "${SEGGER_REPO}" && pixi run --frozen -e cuda121 segger segment -i "${XENIUM_DIR}" -o "${RAW_OUT}" )
 
 echo "== segger export boundaries (cell polygons -> cell areas)"
-( cd "${SEGGER_REPO}" && pixi run -e cuda121 segger export boundaries \
+( cd "${SEGGER_REPO}" && pixi run --frozen -e cuda121 segger export boundaries \
     -s "${RAW_OUT}/segger_segmentation.parquet" -o "${RAW_OUT}/export" ) \
   || echo "boundary export failed -- continuing without cell areas"
 
 echo "== convert to the common format read by R/helpers.R"
-( cd "${SEGGER_REPO}" && pixi run -e cuda121 python "${CODE_DIR}/03b_segger_to_common.py" \
+( cd "${SEGGER_REPO}" && pixi run --frozen -e cuda121 python "${CODE_DIR}/03b_segger_to_common.py" \
     --slide-id "${SLIDE_ID}" \
     --xenium-dir "${XENIUM_DIR}" \
     --segger-parquet "${RAW_OUT}/segger_segmentation.parquet" \

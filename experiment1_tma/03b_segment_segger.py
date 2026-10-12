@@ -14,6 +14,10 @@ loads its CUDA libraries (CuPy) at start-up, so on a node without GPU even
 `segger --help` fails with "libcuda.so.1: cannot open shared object file". Step 3
 runs anywhere: skip_segment=True + skip_export=True redoes only the conversion.
 
+`pixi run --frozen` is used: the installed environment is taken as it is, never
+re-solved -- compute nodes have no internet, and a re-solve there fails with
+"Failed to fetch ... Network unreachable".
+
 One-time install of segger (the login node is fine; it does not need the GPU):
   curl -fsSL https://pixi.sh/install.sh | sh  &&  source ~/.bashrc
   git clone https://github.com/dpeerlab/segger.git /work/.../segger
@@ -144,7 +148,7 @@ def main():
         print(f"skip_segment: reusing {seg_parquet}")
     else:
         gpu_report()
-        rc = run([pixi, "run", "-e", a.pixi_env, "segger", "segment", "-i", a.xenium_dir, "-o", raw_out,
+        rc = run([pixi, "run", "--frozen", "-e", a.pixi_env, "segger", "segment", "-i", a.xenium_dir, "-o", raw_out,
                   *shlex.split(a.segger_options)], cwd=repo, env=env)
         if rc != 0:
             raise RuntimeError("segger segment failed -- see its output above")
@@ -155,7 +159,7 @@ def main():
     if not a.skip_export:
         if a.skip_segment:
             gpu_report()                                # export loads segger's CUDA libraries too
-        rc = run([pixi, "run", "-e", a.pixi_env, "segger", "export", "boundaries",
+        rc = run([pixi, "run", "--frozen", "-e", a.pixi_env, "segger", "export", "boundaries",
                   "-s", seg_parquet, "-o", export_dir], cwd=repo, env=env)
         if rc != 0:
             print("boundary export failed -- continuing without cell areas")
