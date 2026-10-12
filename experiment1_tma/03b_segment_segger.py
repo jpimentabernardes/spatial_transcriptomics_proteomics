@@ -82,6 +82,9 @@ def cuda_env(repo, pixi_env):
     (site-packages/nvidia/<lib>/lib), but CuPy does not look there and fails with
     "libcudart.so.12: cannot open shared object file" unless they are on the path."""
     env = dict(os.environ)
+    ## Jupyter sets MPLBACKEND to its inline backend, which segger's own environment does not have
+    ## ("'module://matplotlib_inline.backend_inline' is not a valid value for backend")
+    env["MPLBACKEND"] = "Agg"
     libs = sorted(glob.glob(os.path.join(repo, ".pixi", "envs", pixi_env, "lib", "python3*",
                                          "site-packages", "nvidia", "*", "lib")))
     if libs:
