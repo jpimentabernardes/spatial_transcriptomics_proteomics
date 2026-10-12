@@ -486,14 +486,16 @@ def main(argv=None):
             os.makedirs(raw, exist_ok=True)
             print(f"\n===== segger from the {p} segmentation =====")
             rc = seg.run([pixi, "run", "--frozen", "-e", a.pixi_env, "segger", "segment", "-i", os.path.join(work, f"input_{p}"),
-                          "-o", raw, *shlex.split(a.segger_options)], cwd=repo, env=env)
+                          "-o", raw, *shlex.split(a.segger_options)], cwd=repo, env=env,
+                         log=os.path.join(raw, "segger_segment.log"))
             if rc != 0:
                 raise RuntimeError(f"segger segment failed for the {p} prior -- see its output above")
             if not a.skip_export:
                 os.makedirs(os.path.join(raw, "export"), exist_ok=True)
                 rc = seg.run([pixi, "run", "--frozen", "-e", a.pixi_env, "segger", "export", "boundaries",
                               "-s", os.path.join(raw, "segger_segmentation.parquet"),
-                              "-o", os.path.join(raw, "export")], cwd=repo, env=env)
+                              "-o", os.path.join(raw, "export")], cwd=repo, env=env,
+                             log=os.path.join(raw, "segger_export.log"))
                 if rc != 0:
                     print("boundary export failed -- continuing without cell areas")
 

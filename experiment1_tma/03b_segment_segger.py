@@ -111,15 +111,39 @@ def cuda_env(repo, pixi_env):
     return env
 
 
-def run(cmd, cwd, env=None):
-    """Run a command and stream its output line by line (terminal and Jupyter). Returns the exit code."""
+def run(cmd, cwd, env=None, log=None, every_s=30, tail=25):
+    """Run a command; returns its exit code.
+
+    log=None: stream every output line (terminal). log=<file>: write ALL output to that file and
+    show only one line every `every_s` seconds plus the last `tail` lines at the end -- segger
+    prints thousands of progress lines, which make a notebook page so big that the browser
+    reloads it. Follow the full output with: tail -f <log file>."""
     print("$", " ".join(cmd), flush=True)
+    if log:
+        print(f"  full output -> {log}   (follow it with: tail -f {log})", flush=True)
     t0 = time.time()
+    last = 0.0
+    recent = []
     proc = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                             bufsize=1)
-    for line in proc.stdout:
-        print(line, end="", flush=True)
-    rc = proc.wait()
+    fh = open(log, "a") if log else None
+    try:
+        for line in proc.stdout:
+            if fh is None:
+                print(line, end="", flush=True)
+                continue
+            fh.write(line)
+            fh.flush()
+            recent = (recent + [line])[-tail:]
+            if time.time() - last >= every_s and line.strip():
+                last = time.time()
+                print(f"  [{(last - t0) / 60:5.1f} min] {line.strip()[:200]}", flush=True)
+        rc = proc.wait()
+    finally:
+        if fh:
+            fh.close()
+    if fh is not None:
+        print("  --- last lines ---\n" + "".join(recent), end="", flush=True)
     print(f"[exit code {rc}, {(time.time() - t0) / 60:.1f} min]", flush=True)
     return rc
 
@@ -167,7 +191,8 @@ def main():
     else:
         gpu_report()
         rc = run([pixi, "run", "--frozen", "-e", a.pixi_env, "segger", "segment", "-i", a.xenium_dir, "-o", raw_out,
-                  *shlex.split(a.segger_options)], cwd=repo, env=env)
+                  *shlex.split(a.segger_options)], cwd=repo, env=env,
+                 log=os.path.join(raw_out, "segger_segment.log"))
         if rc != 0:
             raise RuntimeError("segger segment failed -- see its output above")
     if not os.path.isfile(seg_parquet):
@@ -178,7 +203,8 @@ def main():
         if a.skip_segment:
             gpu_report()                                # export loads segger's CUDA libraries too
         rc = run([pixi, "run", "--frozen", "-e", a.pixi_env, "segger", "export", "boundaries",
-                  "-s", seg_parquet, "-o", export_dir], cwd=repo, env=env)
+                  "-s", seg_parquet, "-o", export_dir], cwd=repo, env=env,
+                 log=os.path.join(raw_out, "segger_export.log"))
         if rc != 0:
             print("boundary export failed -- continuing without cell areas")
     boundaries = os.path.join(export_dir, "cell_boundaries.parquet")
