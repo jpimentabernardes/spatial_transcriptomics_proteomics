@@ -80,7 +80,8 @@ def cuda_env(repo, pixi_env):
 
     PyTorch's pip wheels bring libcudart.so.12, cuBLAS, ... as nvidia-* packages
     (site-packages/nvidia/<lib>/lib), but CuPy does not look there and fails with
-    "libcudart.so.12: cannot open shared object file" unless they are on the path."""
+    "libcudart.so.12: cannot open shared object file" unless they are on the path; Numba / cuDF
+    also need the plain names (libcudart.so), linked in <repo>/.pixi/segger_lib_links/<env>."""
     env = dict(os.environ)
     ## Jupyter sets MPLBACKEND to its inline backend, which segger's own environment does not have
     ## ("'module://matplotlib_inline.backend_inline' is not a valid value for backend")
@@ -88,8 +89,22 @@ def cuda_env(repo, pixi_env):
     libs = sorted(glob.glob(os.path.join(repo, ".pixi", "envs", pixi_env, "lib", "python3*",
                                          "site-packages", "nvidia", "*", "lib")))
     if libs:
-        env["LD_LIBRARY_PATH"] = ":".join(libs + [env.get("LD_LIBRARY_PATH", "")]).rstrip(":")
-        print(f"CUDA libraries of the segger environment put on LD_LIBRARY_PATH ({len(libs)} folders)")
+        ## Numba (used by cuDF) opens the UNVERSIONED names (libcudart.so), the wheels only ship
+        ## libcudart.so.12 -> "libcudart.so: cannot open shared object file". Link the plain names
+        ## in a folder of our own, put first on the path.
+        shim = os.path.join(repo, ".pixi", "segger_lib_links", pixi_env)
+        os.makedirs(shim, exist_ok=True)
+        n_links = 0
+        for d in libs:
+            for f in glob.glob(os.path.join(d, "lib*.so.*")):
+                base = os.path.basename(f).split(".so")[0] + ".so"
+                link = os.path.join(shim, base)
+                if not os.path.exists(os.path.join(d, base)) and not os.path.lexists(link):
+                    os.symlink(f, link)
+                    n_links += 1
+        env["LD_LIBRARY_PATH"] = ":".join([shim] + libs + [env.get("LD_LIBRARY_PATH", "")]).rstrip(":")
+        print(f"CUDA libraries of the segger environment put on LD_LIBRARY_PATH ({len(libs)} folders"
+              f"{', ' + str(n_links) + ' plain-name links added' if n_links else ''})")
     else:
         print("WARNING: no nvidia/*/lib folders in the segger environment -- is it installed (pixi install -e "
               f"{pixi_env})? If segger then fails on libcudart.so.12, load the cluster's CUDA 12 module.")
