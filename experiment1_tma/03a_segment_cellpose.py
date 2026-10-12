@@ -65,6 +65,8 @@ def parse_args():
     p.add_argument("--pad-um", type=float, default=30.0)
     p.add_argument("--tile-um", type=float, default=1000.0)
     p.add_argument("--min-qv", type=float, default=20.0)
+    p.add_argument("--min-tx", type=int, default=2000,
+                   help="skip regions (cores / tiles) with fewer transcripts than this: no tissue, nothing to segment")
     p.add_argument("--flow-threshold", type=float, default=0.4)
     p.add_argument("--cellprob-threshold", type=float, default=0.0)
     p.add_argument("--gpu", action="store_true")
@@ -95,7 +97,14 @@ def load_cellpose(mode, gpu):
         on_gpu, dev = False, "CPU"
     print(f"cellpose {version('cellpose')} loaded -- running on {dev}")
     if gpu and not on_gpu:
-        print("WARNING: gpu=True but PyTorch sees no GPU (job without --gpus-per-node=1, or a CPU-only torch).")
+        raise RuntimeError(
+            "gpu=True, but PyTorch cannot use a GPU here, so cellpose would silently run on the CPU "
+            "(hours per region). Check in this environment:\n"
+            "  python -c \"import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available())\"\n"
+            "Must print True. False: the job has no GPU (srun ... --partition=gpu --gpus-per-node=1, check with "
+            "nvidia-smi), or torch is a CPU build / built for a newer CUDA than the driver "
+            "(pip install torch --index-url https://download.pytorch.org/whl/cu128). "
+            "To run on CPU on purpose, set gpu=False (and level=1).")
     if not on_gpu and major >= 4:
         print("NOTE: Cellpose-SAM (cellpose 4) on CPU takes many minutes per core. Use a GPU job, "
               "or level=1, or test a few cores first (cores=[...]).")
@@ -179,6 +188,13 @@ def main():
     n_cells_total = 0
 
     t_loop = time.time()
+    ## regions without tissue cost as much cellpose time as full ones: skip them by transcript count
+    n_tx = np.array([len(tx.window(r.xmin, r.xmax, r.ymin, r.ymax)) for r in regions.itertuples(index=False)])
+    empty = n_tx < args.min_tx
+    if empty.any():
+        print(f"{empty.sum()} of {len(regions)} regions have < {args.min_tx} transcripts (no tissue) -> skipped")
+        regions = regions[~empty].reset_index(drop=True)
+
     for i, reg in enumerate(regions.itertuples(index=False)):
         # padded crop in pixels, clipped to the image
         c0 = max(0, int(np.floor((reg.xmin - args.pad_um) / px)))
