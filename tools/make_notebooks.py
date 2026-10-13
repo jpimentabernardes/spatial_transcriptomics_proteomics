@@ -35,6 +35,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # script -> folder the notebook goes to (both relative to the repo root)
 SCRIPTS = [
+    ("experiment1_tma/02b_cellscape_grid_to_xenium.py", "experiment1_tma/notebooks"),
     ("experiment1_tma/03a_segment_cellpose.py", "experiment1_tma/notebooks"),
     ("experiment1_tma/03b_segment_segger.py", "experiment1_tma/notebooks"),
     ("experiment1_tma/03b_segger_to_common.py", "experiment1_tma/notebooks"),
@@ -51,6 +52,7 @@ BASE = {"numpy": "numpy", "pandas": "pandas", "scipy": "scipy", "pyarrow": "pyar
 IMG = {**BASE, "tifffile": "tifffile", "zarr": "zarr", "imagecodecs": "imagecodecs", "skimage": "scikit-image",
        "matplotlib": "matplotlib"}
 PACKAGES = {
+    "experiment1_tma/02b_cellscape_grid_to_xenium.py": {**BASE, "matplotlib": "matplotlib"},
     "experiment1_tma/03a_segment_cellpose.py": {**IMG, "cellpose": "cellpose"},
     "experiment1_tma/03b_segment_segger.py": {**BASE},            # segger itself runs in its pixi env
     "experiment1_tma/03b_segger_to_common.py": {**BASE},          # + geopandas only with boundaries
@@ -65,6 +67,7 @@ PACKAGES = {
 IMAGING = ("exp1-imaging", "experiment1_tma/env/py_imaging.yml")
 TOOLKIT = ("exp1-imaging", "experiment1_tma/env/py_imaging.yml + pip install -e tma_toolkit")
 ENVS = {
+    "experiment1_tma/02b_cellscape_grid_to_xenium.py": IMAGING,
     "experiment1_tma/03a_segment_cellpose.py": IMAGING,
     "experiment1_tma/03b_segment_segger.py": IMAGING,
     "experiment1_tma/03b_segger_to_common.py": IMAGING,

@@ -539,6 +539,11 @@ read_qupath_grid <- function(path, map_s, sid) {
                       x_center = as.numeric(g[[c_x]]), y_center = as.numeric(g[[c_y]]),
                       missing = missing, stringsAsFactors = FALSE)
   cores$core_id <- keys$core_id[match(norm(cores$core_name), keys$key)]
+  ## grids from 02b_cellscape_grid_to_xenium.py: keep the CellScape core name (= tma_core of
+  ## the CellScape per-cell tables) and whether that core has tissue on each section
+  for (extra in c("cellscape_core", "presence", "n_cells_xenium")) {
+    if (extra %in% colnames(g)) cores[[extra]] <- g[[extra]]
+  }
   spacing <- if (nrow(cores) > 1) stats::median(RANN::nn2(cores[, c("x_center", "y_center")], k = 2)$nn.dists[, 2]) else NA
   cores$radius <- if (!is.na(c_d)) as.numeric(g[[c_d]]) / 2 else 0.35 * spacing
   cores$detected_core <- seq_len(nrow(cores))
