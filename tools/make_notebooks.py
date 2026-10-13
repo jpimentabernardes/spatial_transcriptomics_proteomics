@@ -274,9 +274,14 @@ def unroll_main(fn, lines, text):
 
 
 
+# scripts whose notebook holds all the code it needs: SCRIPT_DIR only locates config/ (and the
+# default output folder config/core_grid), so the .py file itself does not have to be there
+STANDALONE = {"02b_cellscape_grid_to_xenium.py", "02c_check_cellscape_xenium_match.py"}
+
+
 def script_dir_code(base, rel_dir, needs_py, extra=()):
     """First cell: find the folder holding the script (and py/xenium_io.py), wherever the notebook was put."""
-    req = [base] + (["py/xenium_io.py"] if needs_py else []) + list(extra)
+    req = ([base] if base not in STANDALONE else ["config"]) + (["py/xenium_io.py"] if needs_py else []) + list(extra)
     return (
         f"# Folder with {' and '.join(req)}. Normally this notebook sits in\n"
         f"# notebooks/ next to the scripts ({rel_dir!r}); it is also found if the notebook is in the script\n"
