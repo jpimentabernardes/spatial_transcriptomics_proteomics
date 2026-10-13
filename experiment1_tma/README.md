@@ -43,6 +43,7 @@ H&E (Xenium slide) ─► 07 register H&E → Xenium (--mode he) ─► QuPath r
 | 02a | `02a_make_pseudo_tma.R` | R | **Testing only.** Punches virtual TMA cores out of whole sections (e.g. Swiss rolls), with an inner/middle/outer location per core, so the TMA pipeline can be tested before real TMAs exist. Then run 02 as usual. |
 | 02 | `02_tma_dearray.R` | R | Finds cores (DBSCAN, or Xenium Explorer / polygon selections) and matches them to `tma_map.csv`. Adds patient/organ/location, core QC, filtering. |
 | 02b | `02b_cellscape_grid_to_xenium.py` | Py | TMA grid made on the CellScape scan (pathology's QuPath export `<slide>_TMA_cores.csv`) moved onto the Xenium cells: orientation (rotation / mirroring), tilt, scale and offset found from the tissue itself, refined per core. Writes `config/core_grid/<slide_id>.csv` for 02, the CellScape→Xenium transform (JSON) and a check plot; per core, whether it has tissue on Xenium, on CellScape, both or neither. |
+| 02c | `02c_check_cellscape_xenium_match.py` | Py | Independent check of 02b on the tissue itself: each core's CellScape DNA image vs its Xenium cells in all 8 orientations (orientation test) and vs the 8 neighbouring CellScape cores (label test); summary plot, overlay gallery (CellScape magenta, Xenium green) and a verdict. |
 | 03a | `03a_segment_cellpose.py` | Py | Runs cellpose per core (nuclei + expansion, or DAPI + boundary stain) and re-assigns transcripts. |
 | 03b | `03b_segment_segger.py` (or `.sh`) + `03b_segger_to_common.py` | Py | segger (GNN, transcript-to-cell assignment), run through its pixi environment and converted to the same format. |
 | 03c | `03c_segmentation_benchmark.R` | R | 10x vs cellpose vs segger on the same cores: cells called per method and per core, a scorecard (transcripts assigned, counts per cell, **MECR** = contamination, control rate: which method is better in how many cores), and side-by-side DAPI / 10x / cellpose outlines as in 01. |
@@ -88,6 +89,7 @@ H&E (Xenium slide) ─► 07 register H&E → Xenium (--mode he) ─► QuPath r
    #   or, from the CellScape dearray (pathology's <slide>_TMA_cores.csv), one call per slide:
    python 02b_cellscape_grid_to_xenium.py --slide-id TMA_ORGAN --sector A --cores-csv FL0027_TMA_cores.csv --xenium-dir <xenium_outs>
    python 02b_cellscape_grid_to_xenium.py --slide-id TMA_TUMOR --sector C --cores-csv FL0026_TMA_cores.csv --xenium-dir <xenium_outs>
+   python 02c_check_cellscape_xenium_match.py --slide-id TMA_ORGAN --sector A --cores-csv FL0027_TMA_cores.csv --cellscape-image FL0027_TMA_preview.png --xenium-dir <xenium_outs>
    Rscript 02_tma_dearray.R                                           # then CHECK figures/02_dearray_*.png
    python 03a_segment_cellpose.py --slide-id ... --cores-csv $EXP1_PROJECT_DIR/tables/02_cores_all.csv ...
    python 03b_segment_segger.py --slide-id <slide> --xenium-dir <xenium_outs> --project-dir $EXP1_PROJECT_DIR --segger-repo <segger clone>
