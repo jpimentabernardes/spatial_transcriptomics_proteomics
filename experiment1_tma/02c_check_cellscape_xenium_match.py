@@ -17,8 +17,9 @@ the Xenium cells of the core:
 
 CellScape image: either the <slide>_TMA_preview.png pathology sent (the grid drawn over the
 DNA channel; the coloured circles and labels are ignored), or, better, a DNA image of the
-CellScape scan as OME-TIFF (any pyramid level is read; give --cellscape-channel if it has
-several channels). For the PNG the full CellScape image size is needed to convert pixels to
+CellScape scan as OME-TIFF (only one channel of one low-resolution pyramid level is read; the
+DAPI / DNA channel is found by name, or give --cellscape-channel). NOT the *_TMA_labels.ome.tif
+(the core label mask has no tissue in it; 02c refuses it). For the PNG the full CellScape image size is needed to convert pixels to
 um: known for FL0026 / FL0027 (pathology README), otherwise --cellscape-size-px WxH.
 
 Outputs (next to the 02b grid, default <scripts>/config/core_grid/)
@@ -63,7 +64,9 @@ def parse_args(argv=None):
                         "default <scripts>/config/core_grid")
     p.add_argument("--cellscape-size-px", default=None,
                    help="full CellScape image size 'WxH' (only for a PNG preview; known for FL0026/FL0027)")
-    p.add_argument("--cellscape-channel", type=int, default=0, help="channel of the OME-TIFF with DNA")
+    p.add_argument("--cellscape-channel", default=None,
+                   help="OME-TIFF channel with DNA, as name (e.g. DAPI) or number; default: the first channel "
+                        "named DAPI / DNA / Hoechst")
     p.add_argument("--resolution-um", type=float, default=10.0, help="pixel size of the comparison")
     p.add_argument("--max-shift-um", type=float, default=200.0, help="shift search per core")
     p.add_argument("--n-gallery", type=int, default=48, help="cores shown in the gallery")
@@ -129,25 +132,76 @@ def load_preview(path, size_px, all_cores):
     return gray, ~overlay, (um_x * f, um_y * f), (-ox * um_x * f, -oy * um_y * f)
 
 
+def ome_info(tf):
+    """Channel names and pixel size (um) from the OME-XML, if present."""
+    xml = tf.ome_metadata or ""
+    names = re.findall(r'<Channel[^>]*?Name="([^"]*)"', xml)
+    m = re.search(r'PhysicalSizeX="([0-9.eE+-]+)"', xml)
+    unit = re.search(r'PhysicalSizeXUnit="([^"]+)"', xml)
+    px = float(m.group(1)) if m else None
+    if px is not None and unit and unit.group(1) in ("nm",):
+        px /= 1000.0
+    return names, px
+
+
 def load_ome(path, channel, target_um):
+    """One channel of a CellScape OME-TIFF, from the pyramid level closest to target_um."""
     import tifffile
+    if "label" in os.path.basename(path).lower():
+        raise ValueError(f"{os.path.basename(path)} is the core LABEL MASK (0 = background, k = core), not an image "
+                         "of the tissue -- it holds only the drawn core ellipses, so it cannot test anything. Use "
+                         "the CellScape scan itself (OME-TIFF with a DAPI/DNA channel), or the "
+                         "<slide>_TMA_preview.png.")
     with tifffile.TiffFile(path) as tf:
         s = tf.series[0]
-        levels = s.levels if hasattr(s, "levels") else [s]
         axes = s.axes
+        levels = list(getattr(s, "levels", None) or [s])
+        names, px0 = ome_info(tf)
+        px0 = px0 or CS_UM_PER_PX
         full_w = s.shape[axes.index("X")]
         k = 0
         for i, lv in enumerate(levels):
-            if full_w / lv.shape[axes.index("X")] * CS_UM_PER_PX <= target_um:
+            if full_w / lv.shape[axes.index("X")] * px0 <= target_um:
                 k = i
-        arr = levels[k].asarray()
-        w = levels[k].shape[axes.index("X")]
-    if "C" in axes:
-        arr = np.take(arr, channel, axis=axes.index("C"))
-    arr = np.squeeze(arr).astype(np.float64)
-    um = full_w / w * CS_UM_PER_PX
-    print(f"CellScape image: level {k}, {arr.shape[1]}x{arr.shape[0]} px, {um:.2f} um/px")
-    return arr, np.ones(arr.shape, bool), (um, um), (0.0, 0.0)
+        lv = levels[k]
+        n_c = lv.shape[axes.index("C")] if "C" in axes else 1
+        # which channel: given as index or name, else the first DNA-like name
+        if channel in (None, ""):
+            hit = [i for i, n in enumerate(names[:n_c]) if re.search(r"dapi|dna|hoechst|nucle", n, re.I)]
+            ci = hit[0] if hit else 0
+        elif str(channel).isdigit():
+            ci = int(channel)
+        else:
+            hit = [i for i, n in enumerate(names) if n.lower() == str(channel).lower()]
+            if not hit:
+                raise ValueError(f"channel {channel!r} not in this OME-TIFF; channels: {names}")
+            ci = hit[0]
+        if ci >= n_c:
+            raise ValueError(f"channel {ci} does not exist (the image has {n_c} channels: {names})")
+        cname = names[ci] if ci < len(names) else f"#{ci}"
+        if "C" in axes and n_c > 1 and len(lv.pages) >= n_c:
+            arr = tifffile.imread(path, series=0, level=k, key=ci)       # just this channel's plane
+        else:
+            arr = lv.asarray()
+            if "C" in axes and n_c > 1:
+                arr = np.take(arr, ci, axis=axes.index("C"))
+        w = lv.shape[axes.index("X")]
+    arr = np.squeeze(np.asarray(arr))
+    if arr.ndim == 3:                                   # RGB(A) or extra planes: average them
+        arr = arr.mean(axis=-1 if arr.shape[-1] <= 4 else 0)
+    if np.issubdtype(arr.dtype, np.integer) and n_c == 1:
+        u = np.unique(arr)
+        if 0 in u and 10 < len(u) < 2000 and u.max() < 5000 and len(u) > 0.5 * (u.max() + 1) \
+                and (arr == 0).mean() > 0.3:
+            raise ValueError(f"{os.path.basename(path)} looks like a label mask (values 0..{u.max()}), not a DNA "
+                             "image of the tissue. Use the CellScape scan itself or the preview PNG.")
+    um = full_w / w * px0
+    print(f"CellScape image: {os.path.basename(path)}, channel {ci} ({cname}) of {n_c}, pyramid level {k}, "
+          f"{arr.shape[1]}x{arr.shape[0]} px, {um:.2f} um/px")
+    if n_c > 1 and not re.search(r"dapi|dna|hoechst|nucle", cname, re.I):
+        print(f"WARNING: channel {cname!r} does not look like DNA; channels are: {names}. "
+              "Set cellscape_channel to the DAPI / DNA channel name.")
+    return arr.astype(np.float64), np.ones(arr.shape, bool), (um, um), (0.0, 0.0)
 
 
 def xenium_density(xy, b):
