@@ -1,19 +1,23 @@
-"""Run the segger command line with a fallback for cuSpatial's "invalid quadtree" error.
+"""Run the segger command line with fallbacks for cuSpatial's "invalid quadtree" error.
 
-On large slides (tens of millions of transcripts) cuSpatial can fail to build the quadtree that
-segger uses to cut the slide into tiles:
+On large slides (tens of millions of transcripts) cuSpatial can fail to build the quadtrees segger
+uses, at every size segger tries:
     RuntimeError: cuSpatial invalid quadtree after sizes [...] (see segger issue #40)
-segger also has a plain square-grid tiling, but its command line does not expose it. This file
-replaces segger's QuadTreeTiling by a function that tries the quadtree first and, when it fails,
-uses square tiles. Empty squares are dropped and, unless given, the side length is chosen so that
-the densest squares hold about as many nodes as a quadtree tile would (--max-nodes-per-tile,
-default 50k).
+segger builds them in two places, and this file patches both (segger itself is not changed):
+  1. cutting the slide into tiles (QuadTreeTiling). segger also has a plain square-grid tiling,
+     but its command line does not expose it: the quadtree is tried first and, when it fails,
+     square tiles are used. Empty squares are dropped and, unless given, the side length is
+     chosen so that the densest squares hold about as many nodes as a quadtree tile would
+     (--max-nodes-per-tile, default 50k).
+  2. finding which tile / region each transcript lies in (point-in-polygon join). When the
+     quadtree over all points fails, the points are cut into vertical stripes (4, 16, 64, 256)
+     and each stripe gets its own, smaller quadtree. Same result, just in parts.
 
 Started by 03b/03d inside segger's pixi environment, with the same arguments as `segger`:
     pixi run --frozen -e cuda121 python <this file> segment -i <xenium_dir> -o <out>
 Settings (environment variables):
-    SEGGER_TILING   auto (quadtree, square tiles if it fails; default) | adaptive (quadtree only,
-                    = plain segger) | square (square tiles only)
+    SEGGER_TILING   auto (quadtree, square tiles if it fails; default) | square (square tiles
+                    only) | adaptive (plain segger, no fallbacks at all)
     SEGGER_TILE_UM  side length of the square tiles in um (default: from the transcript density)
 """
 import math
@@ -29,6 +33,7 @@ import numpy as np
 from shapely import box
 
 import segger.data.data_module as data_module
+import segger.geometry.query as query
 from segger.data.tiling import QuadTreeTiling, Tiling
 
 MODE = os.environ.get("SEGGER_TILING", "auto").strip().lower()
@@ -92,10 +97,48 @@ def tiling_with_fallback(positions, max_tile_size):
         return square_tiling(positions, max_tile_size)
 
 
+_contains = query._points_in_polygons_contains
+
+
+def contains_in_stripes(points, polygons, max_size=None, batches=None):
+    """segger's point-in-polygon join; if cuSpatial cannot build the quadtree over all points, the
+    points are split into vertical stripes, each joined with its own quadtree."""
+    try:
+        return _contains(points, polygons, max_size=max_size, batches=batches)
+    except RuntimeError as e:
+        if "quadtree" not in str(e):
+            raise
+        err = e
+    import cudf
+    import cupy as cp
+    import cuspatial
+    xy = cp.asarray(points.points.xy).reshape(-1, 2)
+    order = cp.argsort(xy[:, 0])
+    for k in (4, 16, 64, 256):
+        try:
+            parts = []
+            for idx in cp.array_split(order, k):
+                if len(idx) == 0:
+                    continue
+                sub = cuspatial.GeoSeries.from_points_xy(cp.ascontiguousarray(xy[idx]).ravel())
+                r = _contains(sub, polygons, max_size=max_size, batches=batches).reset_index(drop=True)
+                r["index_query"] = idx[r["index_query"].values]      # stripe position -> original point
+                parts.append(r)
+            say(f"point-in-polygon join on {len(xy)} points: quadtree failed, done in {k} stripes")
+            return cudf.concat(parts, ignore_index=True)
+        except RuntimeError as e:
+            if "quadtree" not in str(e):
+                raise
+            err = e
+    raise err
+
+
 if MODE not in ("auto", "adaptive", "square"):
     raise SystemExit(f"SEGGER_TILING must be auto, adaptive or square, not {MODE!r}")
-## ISTDataModule looks QuadTreeTiling up in its own module when it tiles the graph
-data_module.QuadTreeTiling = tiling_with_fallback
+if MODE != "adaptive":
+    ## both are looked up in their own module at run time, so replacing the module attribute is enough
+    data_module.QuadTreeTiling = tiling_with_fallback          # ISTDataModule: tiling the graph
+    query._points_in_polygons_contains = contains_in_stripes   # points_in_polygons + 'intersects' path
 say(f"tiling mode: {MODE}" + (f", square tiles of {TILE_UM} um" if TILE_UM else ""))
 
 if __name__ == "__main__":

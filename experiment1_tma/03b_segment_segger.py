@@ -186,6 +186,22 @@ def gpu_report():
     print("GPU:", "; ".join(gpus), "| CUDA_VISIBLE_DEVICES =", os.environ.get("CUDA_VISIBLE_DEVICES", "(not set)"))
 
 
+def check_same_xenium(raw_out, slide_id, xenium_dir):
+    """segger_raw/<slide_id>/ remembers which Xenium folder it was made from (xenium_dir.txt): a
+    run of another folder under the same slide_id would overwrite that slide's segger output."""
+    marker = os.path.join(raw_out, "xenium_dir.txt")
+    new = os.path.normpath(os.path.abspath(xenium_dir))
+    if os.path.isfile(marker):
+        old = open(marker).read().strip()
+        if old and os.path.normpath(old) != new:
+            raise RuntimeError(
+                f"{raw_out} holds segger output of slide_id={slide_id} made from\n    {old}\n"
+                f"but this run uses\n    {new}\nCheck slide_id / xenium_dir (slides.csv). If the new folder "
+                f"is right, delete {marker} (and the old output) first.")
+    with open(marker, "w") as fh:
+        fh.write(new + "\n")
+
+
 def main():
     a = parse_args()
     repo = os.path.expanduser(a.segger_repo)
@@ -208,6 +224,7 @@ def main():
     if a.skip_segment:
         print(f"skip_segment: reusing {seg_parquet}")
     else:
+        check_same_xenium(raw_out, a.slide_id, a.xenium_dir)
         gpu_report()
         rc = run([*segment_cmd(pixi, a.pixi_env, env, a.tiling, a.tile_um), "-i", a.xenium_dir, "-o", raw_out,
                   *shlex.split(a.segger_options)], cwd=repo, env=env,
