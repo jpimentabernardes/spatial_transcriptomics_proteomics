@@ -124,10 +124,13 @@ def cuda_env(repo, pixi_env):
 def segment_cmd(pixi, pixi_env, env, tiling="auto", tile_um=None):
     """`segger segment` started through py/segger_tiling.py (square-tile fallback for cuSpatial's
     'invalid quadtree' error on large slides). Sets its settings in env; returns the command start."""
+    wrapper = os.path.join(HERE, "py", "segger_tiling.py")
+    if not os.path.isfile(wrapper):
+        raise FileNotFoundError(f"{wrapper} is missing -- copy py/segger_tiling.py of the repository into "
+                                f"{os.path.join(HERE, 'py')} (next to xenium_io.py)")
     env["SEGGER_TILING"] = tiling
     env["SEGGER_TILE_UM"] = "" if tile_um is None else str(tile_um)
-    return [pixi, "run", "--frozen", "-e", pixi_env, "python", os.path.join(HERE, "py", "segger_tiling.py"),
-            "segment"]
+    return [pixi, "run", "--frozen", "-e", pixi_env, "python", wrapper, "segment"]
 
 
 def run(cmd, cwd, env=None, log=None, every_s=30, tail=25):

@@ -267,11 +267,11 @@ def unroll_main(fn, lines, text):
 
 
 
-def script_dir_code(base, rel_dir, needs_py):
+def script_dir_code(base, rel_dir, needs_py, extra=()):
     """First cell: find the folder holding the script (and py/xenium_io.py), wherever the notebook was put."""
-    req = [base] + (["py/xenium_io.py"] if needs_py else [])
+    req = [base] + (["py/xenium_io.py"] if needs_py else []) + list(extra)
     return (
-        f"# Folder with {base}{' and py/xenium_io.py' if needs_py else ''}. Normally this notebook sits in\n"
+        f"# Folder with {' and '.join(req)}. Normally this notebook sits in\n"
         f"# notebooks/ next to the scripts ({rel_dir!r}); it is also found if the notebook is in the script\n"
         "# folder itself or deeper, or if the scripts are up to 3 subfolders below the notebook.\n"
         "# If not found, set SCRIPT_DIR yourself, e.g.\n"
@@ -368,7 +368,8 @@ def convert_script(src, nb_dir):
                       "except ImportError:\n    print('torch not found -- cellpose needs it:  %pip install torch')")
     cells.append(new_code_cell(
         "import os\n\n"
-        + script_dir_code(base, rel_dir, "xenium_io" in text or "03b_segger_to_common" in text) + check))
+        + script_dir_code(base, rel_dir, "xenium_io" in text or "03b_segger_to_common" in text,
+                          ["py/segger_tiling.py"] if "segment_cmd(" in text else []) + check))
 
     fns = {n.name: n for n in tree.body if isinstance(n, ast.FunctionDef)}
     main = fns.get("main")
