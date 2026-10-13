@@ -12,10 +12,13 @@ so the grid has to be moved onto it first. This script does that without landmar
      without mirroring, plus small tilts (+-4 deg) and scale (+-6 %), each scored by how
      much Xenium tissue (cell density) falls inside the core discs; the best one wins
   3. refine with an affine fit: every core's centre is re-measured on the Xenium cells
-     (mean shift), outliers dropped, repeated until stable. Each core may then move by
-     up to --max-local-shift x core spacing to its own Xenium centre (serial sections
-     are not perfectly identical)
-  4. per core: number of Xenium cells -> missing on Xenium, next to the CellScape
+     (mean shift), outliers dropped, repeated until stable (-> the transform in the JSON)
+  4. follow the section's local warping (serial sections are not identical): every Xenium
+     cell goes to its nearest core (so neighbouring cores share no cells), each core moves
+     to the centre of its cells, and is kept consistent with a local affine fit to its
+     ~12 neighbours (max --max-local-shift x core spacing away from it). Repeated until
+     stable. Cores without tissue on Xenium sit where their neighbours put them.
+  5. per core: number of Xenium cells -> missing on Xenium, next to the CellScape
      "missing" flag (both / xenium_only / cellscape_only / neither)
 
 Outputs (default folder: <scripts>/config/core_grid/, read by 02_tma_dearray.R)
@@ -64,8 +67,10 @@ def parse_args(argv=None):
     p.add_argument("--max-scale-change", type=float, default=0.06, help="largest scale change tried (0.06 = 6 %%)")
     p.add_argument("--min-cells", type=int, default=30,
                    help="cores with fewer Xenium cells inside are 'missing' on Xenium")
-    p.add_argument("--max-local-shift", type=float, default=0.2,
-                   help="a core may move to its own Xenium centre by up to this x core spacing (0 = rigid grid)")
+    p.add_argument("--max-local-shift", type=float, default=0.35,
+                   help="a core may sit up to this x core spacing away from where its neighbours put it (0 = rigid)")
+    p.add_argument("--diameter-um", type=float, default=None,
+                   help="core diameter on Xenium; default: median CellScape diameter x scale (one size for all cores)")
     return p.parse_args(argv)
 
 
@@ -233,6 +238,126 @@ def refine(P, diam, xy, A, t, min_cells, spacing, rounds=5):
     return A, t, pred, obs, n, keep
 
 
+def lattice_steps(names, P):
+    """The two grid steps (CellScape um) from the core names ('A_3-c' = number 3, letter c), or None."""
+    m = pd.Series(names).str.extract(r"(\d+)\W*([A-Za-z]+)$")
+    if m.isna().any().any():
+        return None
+    num = m[0].astype(int).to_numpy()
+    let = m[1].str.lower().map(lambda x: sum((ord(ch) - 96) * 26 ** k for k, ch in enumerate(reversed(x)))).to_numpy()
+    X = np.column_stack([np.ones(len(P)), num, let])
+    if np.linalg.matrix_rank(X) < 3:
+        return None
+    sol = np.linalg.lstsq(X, P, rcond=None)[0]
+    return sol[1], sol[2]                       # um per number step, um per letter step
+
+
+def grow_grid(P, xy, tree_xy, pred0, spacing_P, sp, min_cells, max_dev):
+    """Place the cores outward from a well-fitting seed near the middle: each next core is
+    predicted from its already placed neighbours (local affine, so the grid bends with the
+    section) and moved onto its own tissue (cells closer to a placed core are not used).
+    Returns positions and which cores were found on Xenium tissue."""
+    n = len(P)
+    near1 = cKDTree(P).query_ball_point(P, 1.5 * spacing_P)
+    near3 = cKDTree(P).query_ball_point(P, 3.2 * spacing_P)
+    pos = pred0.copy()
+    found = np.zeros(n, dtype=bool)
+    done = np.zeros(n, dtype=bool)
+    r = 0.4 * sp
+
+    def measure(c, mtree):
+        k = 0
+        for _ in range(6):
+            idx = tree_xy.query_ball_point(c, r)
+            if not idx:
+                return c, 0
+            pts = xy[idx]
+            if mtree is not None:
+                dm, _ = mtree.query(pts)
+                pts = pts[dm > np.linalg.norm(pts - c, axis=1)]
+            k = len(pts)
+            if k == 0:
+                return c, 0
+            c_new = pts.mean(0)
+            if np.linalg.norm(c_new - c) < 1.0:
+                return c_new, k
+            c = c_new
+        return c, k
+
+    def predict(i):
+        q = [j for j in near3[i] if found[j] and j != i]
+        if len(q) >= 3:
+            Pq = P[q] - P[q].mean(0)
+            sv = np.linalg.svd(Pq, compute_uv=False)
+            if sv[-1] > 0.25 * sv[0]:
+                w = 1.0 / (1.0 + np.linalg.norm(P[q] - P[i], axis=1) / spacing_P)
+                Al, tl = fit_affine(P[q], pos[q], w)
+                return Al @ P[i] + tl
+        if q:
+            j = min(q, key=lambda j: np.linalg.norm(P[j] - P[i]))
+            return pred0[i] + (pos[j] - pred0[j])
+        return pred0[i]
+
+    seed = None
+    for i in np.argsort(np.linalg.norm(P - P.mean(0), axis=1))[:30]:
+        c, k = measure(pred0[i], None)
+        if k >= min_cells and np.linalg.norm(c - pred0[i]) <= 0.3 * sp:
+            seed = i
+            pos[i], found[i], done[i] = c, True, True
+            break
+    if seed is None:
+        return pos, found
+    frontier = {j for j in near1[seed] if not done[j]}
+    while frontier:
+        mtree = cKDTree(pos[found])
+        new = sorted(frontier, key=lambda i: -sum(found[j] for j in near1[i]))
+        for i in new:
+            p = predict(i)
+            c, k = measure(p, mtree)
+            if k >= min_cells and np.linalg.norm(c - p) <= max_dev * sp:
+                pos[i], found[i] = c, True
+            else:
+                pos[i] = p
+            done[i] = True
+        frontier = {j for i in new for j in near1[i] if not done[j]}
+    for i in np.where(~done)[0]:                # cores not connected to the rest
+        pos[i] = predict(i)
+    return pos, found
+
+
+def local_refine(P, xy, start, spacing, min_cells, max_dev, k_nb=12, iters=15):
+    """Lloyd-style refinement constrained by the neighbours: cells -> nearest core (within
+    0.6 spacing), core -> centre of its cells, unless that is more than max_dev x spacing from
+    the position a local affine fit to its k_nb grid neighbours predicts."""
+    n_core = len(P)
+    nb = cKDTree(P).query(P, k=min(k_nb + 1, n_core))[1][:, 1:]           # neighbours in grid space
+    C = start.copy()
+    reach = 0.6 * spacing
+    for _ in range(iters):
+        d, j = cKDTree(C).query(xy, k=1, distance_upper_bound=reach)
+        inside = np.isfinite(d)
+        lab = j[inside]
+        n = np.bincount(lab, minlength=n_core)
+        sx = np.bincount(lab, weights=xy[inside, 0], minlength=n_core)
+        sy = np.bincount(lab, weights=xy[inside, 1], minlength=n_core)
+        good = n >= min_cells
+        obs = np.column_stack([sx, sy]) / np.maximum(n, 1)[:, None]
+        L = start.copy()
+        for i in range(n_core):
+            q = nb[i][good[nb[i]]]
+            if len(q) >= 4:
+                w = 1.0 / (1.0 + np.linalg.norm(P[q] - P[i], axis=1) / spacing)
+                Al, tl = fit_affine(P[q], obs[q], w)
+                L[i] = Al @ P[i] + tl
+        ok = good & (np.linalg.norm(obs - L, axis=1) <= max_dev * spacing)
+        newC = np.where(ok[:, None], obs, L)
+        moved = float(np.abs(newC - C).max())
+        C = newC
+        if moved < 1.0:
+            break
+    return C, ok, L
+
+
 def describe(A):
     """Rotation (deg), mirrored, scale x / y of a 2x2 matrix."""
     det = np.linalg.det(A)
@@ -289,7 +414,9 @@ def main(argv=None):
     g = read_cellscape_cores(a.cores_csv, a.sector)
     xy = read_xenium_cells(a.xenium_dir)
     P = g[["centroid_x_um", "centroid_y_um"]].to_numpy(dtype=np.float64)
-    diam = g["diameter_um"].to_numpy(dtype=np.float64)
+    cs_diam = g["diameter_um"].to_numpy(dtype=np.float64)
+    # one size for all cores: the CellScape ellipses vary with how each one was drawn
+    diam = np.full(len(P), float(np.median(cs_diam)))
     spacing = float(np.median(cKDTree(P).query(P, k=2)[0][:, 1]))
     weights = np.where(g["cellscape_missing"], 0.5, 1.0)
 
@@ -297,13 +424,38 @@ def main(argv=None):
     best, _ = coarse_search(P, diam, weights, img, img0, a.bin_um, a.max_tilt, a.max_scale_change)
     A, t, pred, obs, n, keep = refine(P, diam, xy, best["A"], best["t"], a.min_cells, spacing)
 
-    shift = obs - pred
-    dist = np.linalg.norm(shift, axis=1)
-    local = (n >= a.min_cells) & (dist <= a.max_local_shift * spacing)
-    final = np.where(local[:, None], obs, pred)
     s = math.sqrt(abs(np.linalg.det(A)))
+    d_um = a.diameter_um or float(diam[0] * s)
     tree = cKDTree(xy)
-    n_final = np.array([len(tree.query_ball_point(c, 0.5 * d * s)) for c, d in zip(final, diam)])
+    sp = spacing * s
+
+    def coverage(C):
+        return float(np.mean(cKDTree(C).query(xy, k=1)[0] <= 0.5 * d_um))
+
+    if a.max_local_shift > 0:
+        # the grid is periodic: also try it one row / column off and keep the placement whose
+        # 10 x 20 (or whatever) grid covers most of the Xenium tissue -- the TMA edges decide
+        steps = lattice_steps(g["core"].astype(str), P)
+        shifts = [(0, 0)] + ([(i, j) for i in (-1, 0, 1) for j in (-1, 0, 1) if (i, j) != (0, 0)] if steps else [])
+        cands = []
+        for i, j in shifts:
+            delta = (i * steps[0] + j * steps[1]) if steps else np.zeros(2)
+            pos, found = grow_grid(P, xy, tree, pred + A @ delta, spacing, sp, a.min_cells, a.max_local_shift)
+            cands.append(dict(shift=(i, j), pos=pos, found=found, cov=coverage(pos)))
+        cands.sort(key=lambda c: -c["cov"])
+        print("grid position (number step, letter step) -> Xenium cells covered by the cores:")
+        for c in cands:
+            print(f"  shift {str(c['shift']):<9} {100 * c['cov']:.1f}%  ({int(c['found'].sum())} cores on tissue)")
+        if len(cands) > 1 and cands[1]["cov"] > cands[0]["cov"] - 0.01:
+            print("WARNING: two grid positions cover the tissue almost equally -- check the core labels on the plot")
+        best_c = cands[0]
+        final, local, _ = local_refine(P, xy, best_c["pos"], sp, a.min_cells, 0.25)
+        A, t = fit_affine(P[local], final[local]) if local.sum() >= 3 else (A, t)
+        pred = P @ A.T + t
+    else:
+        final, local = pred.copy(), np.zeros(len(P), dtype=bool)
+    dist = np.linalg.norm(final - pred, axis=1)
+    n_final = np.array([len(tree.query_ball_point(c, 0.5 * d_um)) for c in final])
     xen_missing = n_final < a.min_cells
     cs_missing = g["cellscape_missing"].to_numpy()
     presence = np.select([~xen_missing & ~cs_missing, ~xen_missing & cs_missing, xen_missing & ~cs_missing],
@@ -312,18 +464,19 @@ def main(argv=None):
     out = pd.DataFrame({
         "core_name": g["core"].astype(str).str.replace(r"^[A-Za-z]+_", "", regex=True),
         "x_um": final[:, 0].round(2), "y_um": final[:, 1].round(2),
-        "diameter_um": (diam * s).round(1),
+        "diameter_um": round(d_um, 1),
         "missing": xen_missing,
         "cellscape_core": g["core"].astype(str), "sector": g["sector"],
         "cellscape_missing": cs_missing,
         "n_cells_xenium": n_final,
-        "shift_um": np.where(local, dist, 0).round(1),
+        "shift_um": dist.round(1),
+        "cellscape_diameter_um": cs_diam.round(1),
         "presence": presence,
     })
 
     # how much of the Xenium tissue the grid covers (cells within 0.6 x diameter of a core centre)
     near = cKDTree(final).query(xy, k=1)
-    covered = float(np.mean(near[0] <= 0.6 * diam[near[1]] * s))
+    covered = float(np.mean(near[0] <= 0.6 * d_um))
     fit_res = np.linalg.norm(obs[keep] - pred[keep], axis=1) if keep is not None and keep.any() else np.array([np.nan])
     info = dict(orientation=best["orientation"], **describe(A))
     info.update(
@@ -353,7 +506,8 @@ def main(argv=None):
           f"mirrored {info['mirrored']}), scale {info['scale_x']:.3f} / {info['scale_y']:.3f}")
     print(f"affine fit on {info['cores_used_for_fit']} cores: residual median {info['fit_residual_um_median']} um, "
           f"90% {info['fit_residual_um_p90']} um (core spacing {info['core_spacing_um']} um)")
-    print(f"{int(local.sum())} cores moved to their own Xenium centre (median {np.median(dist[local]) if local.any() else 0:.0f} um)")
+    print(f"local refinement: {int(local.sum())} cores placed on their own Xenium tissue; distance from the affine "
+          f"grid median {np.median(dist):.0f} um, max {dist.max():.0f} um; core diameter {d_um:.0f} um")
     print("cores: " + ", ".join(f"{k} {counts.get(k, 0)}" for k in ("both", "xenium_only", "cellscape_only", "neither")))
     print(f"{100 * covered:.0f}% of the Xenium cells lie on a grid core")
     if covered < 0.7:
