@@ -39,6 +39,7 @@ import argparse
 import json
 import math
 import os
+import re
 import sys
 
 import numpy as np
@@ -55,7 +56,8 @@ def parse_args(argv=None):
     p.add_argument("--cores-csv", required=True, help="<slide>_TMA_cores.csv of the CellScape dearray")
     p.add_argument("--xenium-dir", required=True, help="Xenium output folder (output-XETG...) of this slide")
     p.add_argument("--sector", nargs="+", required=True,
-                   help="sector letter(s) on the Xenium slide, e.g. A (TMA_ORGAN / FL0027) or C (TMA_TUMOR / FL0026)")
+                   help="sector letter(s) on the Xenium slide: A for TMA_ORGAN (FL0027), C for TMA_TUMOR (FL0026); "
+                        "in the notebook as a list, e.g. ['C']")
     p.add_argument("--out-dir", default=None, help="default: <scripts>/config/core_grid")
     p.add_argument("--bin-um", type=float, default=40.0, help="pixel size of the density image for the search")
     p.add_argument("--max-tilt", type=float, default=4.0, help="largest extra rotation tried, degrees")
@@ -282,6 +284,8 @@ def main(argv=None):
     out_dir = a.out_dir or os.path.join(HERE, "config", "core_grid")
     os.makedirs(out_dir, exist_ok=True)
 
+    if isinstance(a.sector, str):          # notebook: sector='C' or 'A, B' instead of a list
+        a.sector = [t for t in re.split(r"[\s,;]+", a.sector.strip()) if t]
     g = read_cellscape_cores(a.cores_csv, a.sector)
     xy = read_xenium_cells(a.xenium_dir)
     P = g[["centroid_x_um", "centroid_y_um"]].to_numpy(dtype=np.float64)
