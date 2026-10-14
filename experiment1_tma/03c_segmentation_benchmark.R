@@ -54,6 +54,12 @@ load_method <- function(method) {
   for (i in seq_len(nrow(slides))) {
     d <- seg_dir_for(slides[i, ], method)
     if (!dir.exists(d)) { message("  no ", method, " output for ", slides$slide_id[i]); next }
+    if (!dir.exists(file.path(d, "cell_feature_matrix")) && !file.exists(file.path(d, "cell_feature_matrix.h5"))) {
+      ## folder made, but the conversion to the common format did not finish (e.g. 03b step 3)
+      message("  ", method, " / ", slides$slide_id[i], ": ", d, " has no cell_feature_matrix -- skipped ",
+              "(finish that method's conversion first)")
+      next
+    }
     o <- load_segmentation(slides[i, ], method)
     cores_s <- cores_all[cores_all$slide_id == slides$slide_id[i], ]
     o$core_id <- assign_cells_to_cores(o$x_um, o$y_um, cores_s)
