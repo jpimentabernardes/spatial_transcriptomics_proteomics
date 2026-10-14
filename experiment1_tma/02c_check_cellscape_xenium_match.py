@@ -22,6 +22,9 @@ DAPI / DNA channel is found by name, or give --cellscape-channel). NOT the *_TMA
 (the core label mask has no tissue in it; 02c refuses it). For the PNG the full CellScape image size is needed to convert pixels to
 um: known for FL0026 / FL0027 (pathology README), otherwise --cellscape-size-px WxH.
 
+If <slide_id>_edited.csv (manual corrections from QuPath, qupath/export_core_edits.groovy)
+exists, its positions are checked instead of the 02b grid.
+
 Outputs (next to the 02b grid, default <scripts>/config/core_grid/)
   <slide_id>_match_summary.png   orientation votes, own core vs neighbours, one core in all 8
                                  orientations
@@ -286,6 +289,16 @@ def main(argv=None):
         a.sector = [t for t in re.split(r"[\s,;]+", a.sector.strip()) if t]
     grid_dir = a.grid_dir or os.path.join(HERE, "config", "core_grid")
     grid = pd.read_csv(os.path.join(grid_dir, f"{a.slide_id}.csv"))
+    edited_csv = os.path.join(grid_dir, f"{a.slide_id}_edited.csv")
+    if os.path.isfile(edited_csv):
+        # manual corrections (qupath/export_core_edits.groovy): check those positions
+        ed = pd.read_csv(edited_csv).set_index("core_name")
+        grid = grid[grid["core_name"].isin(ed.index)].copy()
+        grid["x_um"] = grid["core_name"].map(ed["x_um"])
+        grid["y_um"] = grid["core_name"].map(ed["y_um"])
+        miss = grid["core_name"].map(ed["missing"].astype(str).str.upper().eq("TRUE"))
+        grid.loc[miss, "presence"] = "edited_missing"
+        print(f"checking the manual corrections in {os.path.basename(edited_csv)} ({len(grid)} cores)")
     with open(os.path.join(grid_dir, f"{a.slide_id}_cellscape_to_xenium.json")) as fh:
         info = json.load(fh)
     A = np.array(info["A"])

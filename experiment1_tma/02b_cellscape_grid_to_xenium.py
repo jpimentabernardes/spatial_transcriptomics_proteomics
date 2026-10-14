@@ -28,6 +28,13 @@ Outputs (default folder: <scripts>/config/core_grid/, read by 02_tma_dearray.R)
   <slide_id>_cellscape_to_xenium.json   the transform (CellScape um / px -> Xenium um), also
                                usable to bring CellScape cells into the Xenium frame
   <slide_id>_grid_on_xenium.png         check plot: the grid over the Xenium cells
+  <slide_id>_grid_qupath.geojson        the grid as QuPath annotations (one named circle per core,
+                               class = presence) on the Xenium morphology image, for manual
+                               corrections: open morphology_focus in QuPath, File > Import
+                               objects (or drag the file in), move / resize / re-class cores,
+                               then run qupath/export_core_edits.groovy -> <slide_id>_edited.csv.
+                               02 uses <slide_id>_edited.csv instead of <slide_id>.csv when it
+                               exists, so re-running 02b never overwrites manual edits.
 
 core_name drops the sector prefix ("A_1-a" -> "1-a") so 02 matches it to tma_map.csv
 by row and column like any QuPath grid; cellscape_core keeps the full name, the
@@ -358,6 +365,38 @@ def local_refine(P, xy, start, spacing, min_cells, max_dev, k_nb=12, iters=15):
     return C, ok, L
 
 
+def xenium_pixel_size(xenium_dir):
+    f = os.path.join(xenium_dir, "experiment.xenium")
+    try:
+        with open(f) as fh:
+            return float(json.load(fh)["pixel_size"])
+    except Exception:
+        return 0.2125
+
+
+PRESENCE_COLOURS = {"both": [242, 194, 0], "xenium_only": [47, 168, 79], "cellscape_only": [208, 48, 48],
+                    "neither": [154, 154, 154]}
+
+
+def write_qupath_geojson(out, px_um, path, n_vertices=48):
+    """Cores as QuPath annotations (circles) in pixels of the Xenium morphology image."""
+    th = np.linspace(0, 2 * np.pi, n_vertices, endpoint=False)
+    feats = []
+    for r in out.itertuples(index=False):
+        rad = r.diameter_um / 2 / px_um
+        cx, cy = r.x_um / px_um, r.y_um / px_um
+        ring = [[float(cx + rad * np.cos(t)), float(cy + rad * np.sin(t))] for t in th]
+        ring.append(ring[0])
+        feats.append({"type": "Feature",
+                      "geometry": {"type": "Polygon", "coordinates": [ring]},
+                      "properties": {"objectType": "annotation", "name": str(r.core_name),
+                                     "classification": {"name": r.presence,
+                                                        "color": PRESENCE_COLOURS.get(r.presence, [200, 200, 200])},
+                                     "isLocked": False}})
+    with open(path, "w") as fh:
+        json.dump({"type": "FeatureCollection", "features": feats}, fh)
+
+
 def describe(A):
     """Rotation (deg), mirrored, scale x / y of a 2x2 matrix."""
     det = np.linalg.det(A)
@@ -497,6 +536,9 @@ def main(argv=None):
     out.to_csv(grid_csv, index=False)
     with open(os.path.join(out_dir, f"{a.slide_id}_cellscape_to_xenium.json"), "w") as fh:
         json.dump(info, fh, indent=2)
+    px_um = xenium_pixel_size(a.xenium_dir)
+    gj = os.path.join(out_dir, f"{a.slide_id}_grid_qupath.geojson")
+    write_qupath_geojson(out, px_um, gj)
     fig = plot(xy, out, a.slide_id, a.sector, info)
     png = os.path.join(out_dir, f"{a.slide_id}_grid_on_xenium.png")
     fig.savefig(png, dpi=200)
@@ -514,7 +556,11 @@ def main(argv=None):
         print("WARNING: much Xenium tissue is outside the grid -- wrong sector, or the fit is off. Check the plot.")
     if info["fit_residual_um_median"] > 0.15 * info["core_spacing_um"]:
         print("WARNING: large fit residuals -- check the plot before using the grid.")
-    print(f"\nwritten: {grid_csv}\n         {png}\n"
+    edited = os.path.join(out_dir, f"{a.slide_id}_edited.csv")
+    if os.path.isfile(edited):
+        print(f"NOTE: {os.path.basename(edited)} (your manual corrections) exists -- 02 uses it, not this new grid. "
+              "Delete it to use the new grid.")
+    print(f"\nwritten: {grid_csv}\n         {png}\n         {gj}  (QuPath, for manual corrections)\n"
           f"Next: 02_tma_dearray.R (QuPath grid mode picks up {os.path.basename(grid_csv)}); its core names "
           f"('{out['core_name'].iloc[0]}') are matched to tma_map.csv by row + column.")
 

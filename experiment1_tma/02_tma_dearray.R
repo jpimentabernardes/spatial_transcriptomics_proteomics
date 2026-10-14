@@ -72,7 +72,9 @@ for (i in seq_len(nrow(slides))) {
   in_slide <- meta$slide_id == sid
   cores_file <- file.path(TABLES_DIR, paste0("02_cores_", sid, ".csv"))
   sel_dir <- file.path(CONFIG_DIR, "core_selections", sid)
-  qp_file <- file.path(CONFIG_DIR, "core_grid", paste0(sid, ".csv"))
+  qp_base <- file.path(CONFIG_DIR, "core_grid", paste0(sid, ".csv"))
+  qp_edit <- file.path(CONFIG_DIR, "core_grid", paste0(sid, "_edited.csv"))   # manual corrections (QuPath)
+  qp_file <- if (file.exists(qp_edit)) qp_edit else qp_base
   expected <- NULL
   unmatched_plot <- NULL
   anc_s <- if (!is.null(anchors)) anchors[anchors$slide_id == sid, ] else NULL
@@ -102,6 +104,18 @@ for (i in seq_len(nrow(slides))) {
     ## centre within CORE_MAX_DIST_FACTOR x the core radius
     message(sid, ": TMA grid from QuPath (", qp_file, ")")
     cores <- read_qupath_grid(qp_file, map_s, sid)
+    if (identical(qp_file, qp_edit) && file.exists(qp_base)) {
+      ## edited grid (qupath/export_core_edits.groovy): positions / missing from the edits,
+      ## CellScape names and the rest from the 02b grid, matched by core name
+      base <- utils::read.csv(qp_base, stringsAsFactors = FALSE)
+      for (extra in intersect(c("cellscape_core", "presence", "n_cells_xenium"), colnames(base))) {
+        cores[[extra]] <- base[[extra]][match(cores$core_name, base$core_name)]
+      }
+      gone <- setdiff(base$core_name, cores$core_name)
+      message(sid, ": using the manual corrections in ", basename(qp_edit),
+              if (length(gone)) paste0(" (", length(gone), " cores deleted there: ",
+                                       paste(utils::head(gone, 15), collapse = ", "), ")") else "")
+    }
     half <- cores$radius * CORE_MAX_DIST_FACTOR
     cores$xmin <- cores$x_center - half; cores$xmax <- cores$x_center + half
     cores$ymin <- cores$y_center - half; cores$ymax <- cores$y_center + half

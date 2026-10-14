@@ -89,6 +89,9 @@ H&E (Xenium slide) ─► 07 register H&E → Xenium (--mode he) ─► QuPath r
    #   or, from the CellScape dearray (pathology's <slide>_TMA_cores.csv), one call per slide:
    python 02b_cellscape_grid_to_xenium.py --slide-id TMA_ORGAN --sector A --cores-csv FL0027_TMA_cores.csv --xenium-dir <xenium_outs>
    python 02b_cellscape_grid_to_xenium.py --slide-id TMA_TUMOR --sector C --cores-csv FL0026_TMA_cores.csv --xenium-dir <xenium_outs>
+   #   manual corrections: import config/core_grid/<slide>_grid_qupath.geojson into QuPath on the Xenium
+   #   morphology image, fix cores, run qupath/export_core_edits.groovy -> config/core_grid/<slide>_edited.csv
+   #   (02 and 02c use it instead of <slide>.csv)
    python 02c_check_cellscape_xenium_match.py --slide-id TMA_ORGAN --sector A --cores-csv FL0027_TMA_cores.csv --cellscape-image FL0027_TMA_preview.png --xenium-dir <xenium_outs>
    Rscript 02_tma_dearray.R                                           # then CHECK figures/02_dearray_*.png
    python 03a_segment_cellpose.py --slide-id ... --cores-csv $EXP1_PROJECT_DIR/tables/02_cores_all.csv ...
