@@ -40,6 +40,8 @@ RES_IMMUNE     <- get0("RES_IMMUNE",     ifnotfound = 0.8)
 RES_STROMA     <- get0("RES_STROMA",     ifnotfound = 0.5)
 RES_EPITHELIAL <- get0("RES_EPITHELIAL", ifnotfound = 0.6)
 MIN_CELLS_GROUP <- get0("MIN_CELLS_GROUP", ifnotfound = 500)
+## families whose epithelium is sub-clustered (NULL = all); others keep "<lineage>_<family>"
+ANNOT_FAMILIES_DETAIL <- get0("ANNOT_FAMILIES_DETAIL", ifnotfound = NULL)
 LINEAGES <- c("Immune", "Epithelial", "Mesenchymal", "Endothelial", "Neural_NE")
 
 xen <- readRDS(obj_path("cores"))
@@ -167,7 +169,8 @@ annotate_group <- function(obj, group, sigs, res, comp_by) {
   }
   obj$label_tmp <- unname(lab[as.character(obj[[col, drop = TRUE]])])
   p_umap <- plot_umap_labelled(obj, col, label_size = 5, legend = FALSE, title = paste(group, "clusters")) |
-    plot_umap_labelled(obj, "label_tmp", label_size = 4, title = "current labels") |
+    plot_umap_labelled(obj, "label_tmp", label_size = 4, title = "current labels",
+                       pal = celltype_palette(obj$label_tmp, if (group == "L1_lineage") obj$label_tmp else obj$lineage)) |
     plot_umap_labelled(obj, comp_by, label = FALSE, title = comp_by)
   save_fig(p_umap, paste0("04_", group, "_umap"), width = 30, height = 10, dpi = 160)
   comp <- meta |> filter(!is.na(.data[[comp_by]])) |> count(cl = .data[[col]], o = .data[[comp_by]]) |>
@@ -207,7 +210,8 @@ print(table(lineage = xen$lineage, slide = xen$slide_id))
 xen$annotation_group <- dplyr::case_when(
   xen$lineage == "Immune" ~ "Immune",
   xen$lineage %in% c("Mesenchymal", "Endothelial") ~ "Stroma",
-  xen$lineage %in% c("Epithelial", "Neural_NE") & xen$family != "none" ~ paste0("Epi_", xen$family),
+  xen$lineage %in% c("Epithelial", "Neural_NE") & xen$family != "none" &
+    (is.null(ANNOT_FAMILIES_DETAIL) | xen$family %in% ANNOT_FAMILIES_DETAIL) ~ paste0("Epi_", xen$family),
   TRUE ~ "none")
 xen$cell_type <- ifelse(xen$lineage %in% c("Epithelial", "Neural_NE"),
                         paste0(xen$lineage, "_", ifelse(xen$family == "none", "other", xen$family)),
@@ -244,7 +248,8 @@ print(as.data.frame(ct_tab), row.names = FALSE)
 ## -----------------------------------------------------------------------
 ## 4. Whole-dataset figures with the final labels
 ## -----------------------------------------------------------------------
-save_fig(plot_umap_labelled(xen, "lineage", label_size = 6, title = "Lineage (L1)"), "04_lineage_umap",
+pal_lin <- celltype_palette(xen$lineage, xen$lineage)       # same colours as the sections / bar plots
+save_fig(plot_umap_labelled(xen, "lineage", label_size = 6, title = "Lineage (L1)", pal = pal_lin), "04_lineage_umap",
          width = 14, height = 11, dpi = 180)
 n_slides <- length(unique(xen$slide_id))
 lin_meta <- xen[[]]; lin_meta$cell_type <- lin_meta$lineage
@@ -262,19 +267,21 @@ if (nrow(imm)) {
     scale_fill_manual(values = pal_imm, name = "Immune cell type") + scale_y_continuous(expand = c(0, 0)) +
     theme_bw(base_size = 12) +
     theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), panel.grid = element_blank(),
-          strip.text = element_text(face = "bold", size = 8)) +
+          strip.text = element_text(face = "bold", size = 11, angle = 90, hjust = 0)) +
     labs(x = "cores", y = "fraction of immune cells", title = "Immune composition per core, by family")
-  save_fig(p_imm, "04_immune_composition_per_core", width = 26, height = 8, dpi = 180)
+  save_fig(p_imm, "04_immune_composition_per_core", width = 26, height = 10, dpi = 180)
 }
 lin_comp <- xen[[]] |> filter(!is.na(core_id)) |> count(family, core_id, lineage) |>
   group_by(core_id) |> mutate(frac = n / sum(n)) |> ungroup()
+lin_comp$lineage <- factor(lin_comp$lineage, levels = names(pal_lin))
 p_lin <- ggplot(lin_comp, aes(core_id, frac, fill = lineage)) + geom_col(width = 0.9) +
+  scale_fill_manual(values = pal_lin, name = "Lineage") +
   facet_grid(~ family, scales = "free_x", space = "free_x") + scale_y_continuous(expand = c(0, 0)) +
   theme_bw(base_size = 12) +
   theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), panel.grid = element_blank(),
-        strip.text = element_text(face = "bold", size = 8)) +
+        strip.text = element_text(face = "bold", size = 11, angle = 90, hjust = 0)) +
   labs(x = "cores", y = "fraction of cells", title = "Lineage composition per core, by family")
-save_fig(p_lin, "04_lineage_composition_per_core", width = 26, height = 7, dpi = 180)
+save_fig(p_lin, "04_lineage_composition_per_core", width = 26, height = 9, dpi = 180)
 
 ## -----------------------------------------------------------------------
 ## 5. Export for registration / cross-modal alignment (07, 07b)

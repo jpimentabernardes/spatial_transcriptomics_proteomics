@@ -111,6 +111,7 @@ RES_STROMA       <- 0.5      # mesenchymal + endothelial, all organs together
 RES_EPITHELIAL   <- 0.6      # epithelial / neuroendocrine cells, per family
 MIN_CELLS_GROUP  <- 500      # smaller groups are not sub-clustered
 ANNOT_FAMILIES_CSV <- file.path(CONFIG_DIR, "annotation_families.csv")
+ANNOT_FAMILIES_DETAIL <- NULL   # e.g. c("GI_glandular", "Neuroendocrine"): only these families' epithelium is sub-clustered
 RES_LEVEL1       <- 0.3      # 06 (CellScape): lineage clustering
 RES_LEVEL2       <- 0.6      # 06 (CellScape): sub-clustering within a lineage
 TOP_N_PER_CLUSTER <- 5       # 04: top FindAllMarkers genes per cluster shown in the dot plot
