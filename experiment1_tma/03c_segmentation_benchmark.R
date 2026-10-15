@@ -121,6 +121,9 @@ metrics <- dplyr::bind_rows(lapply(names(seg), function(method) {
       core_id = cid,
       n_cells = length(cells),
       cells_per_mm2 = length(cells) / core_area_mm2[[cid]],
+      ## gene transcripts inside cells of this core: same core, same transcripts for every
+      ## method, so it compares how much of the core's RNA each segmentation captures
+      tx_in_cells = sum(mm$nCount_Xenium),
       median_counts = median(mm$nCount_Xenium),
       median_genes = median(mm$nFeature_Xenium),
       median_area = median(mm$cell_area, na.rm = TRUE),
@@ -150,6 +153,12 @@ summ <- dplyr::bind_rows(lapply(setdiff(names(seg), "xenium"), function(mth) {
     data.frame(method = "xenium", core_id = s$region_id, pct_tx_assigned = 100 * s$n_assigned_xenium / pmax(s$n_tx_genes, 1))
   )
 }))
+if (nrow(summ) > 0 && !any(summ$core_id %in% common_cores)) {
+  message("assignment_summary.csv of ", paste(setdiff(unique(summ$method), "xenium"), collapse = ", "),
+          " is per tile, not per core (03a/03b run without the core table) -- pct_tx_assigned left out; ",
+          "tx_in_cells (transcripts in cells per core) compares the methods instead.")
+  summ <- summ[0, ]
+}
 if (nrow(summ) > 0) {
   summ <- summ |> distinct(method, core_id, .keep_all = TRUE)
   metrics <- metrics |> left_join(summ, by = c("method", "core_id"))
@@ -193,7 +202,7 @@ save_fig(patchwork::wrap_plots(c(list(p_tot), p_cores), nrow = 1), "03c_cell_num
 ##    or contaminated cells) and negative-control rate. More cells is NOT
 ##    better by itself: split nuclei and debris also add cells.
 ## -----------------------------------------------------------------------
-better <- c(pct_tx_assigned = "higher", median_counts = "higher", pct_cells_min_counts = "higher",
+better <- c(pct_tx_assigned = "higher", tx_in_cells = "higher", median_counts = "higher", pct_cells_min_counts = "higher",
             mecr = "lower", ctrl_per_1000 = "lower")
 better <- better[names(better) %in% colnames(metrics)]
 score <- dplyr::bind_rows(lapply(names(better), function(k) {
@@ -260,7 +269,7 @@ if (!requireNamespace("tiff", quietly = TRUE)) {
 ## -----------------------------------------------------------------------
 ## 5. Summary by method x organ -> decide, then set SEGMENTATION in config.R
 ## -----------------------------------------------------------------------
-metric_cols <- intersect(c("n_cells", "median_counts", "pct_tx_assigned", "pct_cells_min_counts", "mecr",
+metric_cols <- intersect(c("n_cells", "tx_in_cells", "median_counts", "pct_tx_assigned", "pct_cells_min_counts", "mecr",
                            "median_area", "ctrl_per_1000"), colnames(metrics))
 decision <- metrics |>
   group_by(method, organ) |>
