@@ -96,6 +96,7 @@ suggest_labels <- function(obj, col, sigs) {
   genes <- unique(unlist(sigs))
   avg <- AverageExpression(obj, assays = "Xenium", features = genes, group.by = col, layer = "data")$Xenium
   avg <- as.matrix(avg)
+  if (length(cl) == 1) colnames(avg) <- cl                  # one cluster: Seurat names the column "all"
   colnames(avg) <- sub("^g", "", colnames(avg))            # Seurat prefixes numeric idents with "g"
   z <- t(scale(t(log1p(avg))))
   z[is.na(z)] <- 0
@@ -217,6 +218,7 @@ xen$cell_type <- ifelse(xen$lineage %in% c("Epithelial", "Neural_NE"),
                         paste0(xen$lineage, "_", ifelse(xen$family == "none", "other", xen$family)),
                         xen$lineage)
 groups <- sort(setdiff(unique(xen$annotation_group), "none"))
+failed <- list()
 group_tab <- as.data.frame(table(annotation_group = xen$annotation_group))
 save_table(group_tab, "04_annotation_groups")
 for (g in groups) {
@@ -236,9 +238,18 @@ for (g in groups) {
     res <- RES_EPITHELIAL; by <- "organ"
   }
   sub <- subset(xen, cells = cells)
-  lab <- annotate_group(sub, g, sigs, res, comp_by = by)$labels
-  xen$cell_type[match(names(lab), colnames(xen))] <- lab
+  lab <- tryCatch(annotate_group(sub, g, sigs, res, comp_by = by)$labels, error = function(e) {
+    failed[[g]] <<- conditionMessage(e)
+    message("!! ", g, " FAILED: ", conditionMessage(e), "\n   -> its cells keep '", xen$cell_type[cells[1]],
+            "'-type labels; the other groups continue.")
+    NULL
+  })
+  if (!is.null(lab)) xen$cell_type[match(names(lab), colnames(xen))] <- lab
   rm(sub); gc()
+}
+if (length(failed)) {
+  message("\n!! Groups that failed (send this to the analyst):")
+  for (g in names(failed)) message("   ", g, ": ", failed[[g]])
 }
 xen$celltype <- factor(xen$cell_type)
 ct_tab <- xen[[]] |> count(lineage, annotation_group, cell_type, name = "n_cells")
