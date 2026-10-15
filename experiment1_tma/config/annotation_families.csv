@@ -31,19 +31,19 @@ Gallbladder,Hepato_pancreato_biliary,Gastro
 Liver,Hepato_pancreato_biliary,Gastro
 Pancreas,Hepato_pancreato_biliary,Gastro
 Spleen,none,Gastro
-Mamma lactans,Breast_gynaecological,Breast
-"Mamma, resting",Breast_gynaecological,Breast
+Mamma lactans,Breast,Breast
+"Mamma, resting",Breast,Breast
 Ektocervix,Squamous,Lower Gyn
-Endocervix,Breast_gynaecological,Lower Gyn
-Endometrium,Breast_gynaecological,Lower Gyn
-"Fallopian tube, mucosa",Breast_gynaecological,Lower Gyn
-"Placenta, early",Breast_gynaecological,Lower Gyn
-"Placenta, mature",Breast_gynaecological,Lower Gyn
-Amnion,Breast_gynaecological,Lower Gyn
-"Ovary, corpus albicans",Breast_gynaecological,Lower Gyn
-"Ovary, corpus luteum",Breast_gynaecological,Lower Gyn
-"Ovary, follicular cyst",Breast_gynaecological,Lower Gyn
-"Ovary, stroma",Breast_gynaecological,Lower Gyn
+Endocervix,Gynaecological,Lower Gyn
+Endometrium,Gynaecological,Lower Gyn
+"Fallopian tube, mucosa",Gynaecological,Lower Gyn
+"Placenta, early",Gynaecological,Lower Gyn
+"Placenta, mature",Gynaecological,Lower Gyn
+Amnion,Gynaecological,Lower Gyn
+"Ovary, corpus albicans",Gynaecological,Lower Gyn
+"Ovary, corpus luteum",Gynaecological,Lower Gyn
+"Ovary, follicular cyst",Gynaecological,Lower Gyn
+"Ovary, stroma",Gynaecological,Lower Gyn
 "Uterus, myometrium",none,Lower Gyn
 "Kidney, cortex",Urogenital,Uro
 "Kidney, medulla",Urogenital,Uro
@@ -113,5 +113,5 @@ Adenocarcinoma of the colon,GI_glandular,Gastro
 "Colorectal, neuroendocrine carcinoma (NEC)",Neuroendocrine,Gastro
 Adenocarcinoma of the sigmoid,GI_glandular,Gastro
 Squamous cell carcinoma of the anal canal,Squamous,Gastro
-"Breast carcinoma, NST, G1",Breast_gynaecological,Breast
-"Breast carcinoma, NST, G2",Breast_gynaecological,Breast
+"Breast carcinoma, NST, G1",Breast,Breast
+"Breast carcinoma, NST, G2",Breast,Breast
