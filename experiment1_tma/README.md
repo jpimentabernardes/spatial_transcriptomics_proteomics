@@ -50,6 +50,7 @@ H&E (Xenium slide) ─► 07 register H&E → Xenium (--mode he) ─► QuPath r
 | 03d | `03d_segger_priors.py` | Py | segger started twice on the same cores: from the 10x cells and from the cellpose cells (03a masks). Builds both inputs in Xenium format, runs segger, converts (`segger_xenium`, `segger_cellpose` for 03c) and writes, per transcript, its source cell in each segmentation and its segger cell (`transcript_attribution.parquet`). |
 | 03e | `03e_segger_prior_comparison.R` | R | Does segger re-segment each input and which input is worse: transcript fate (kept / moved to another cell / removed / added), per-cell fate, genes moved most, agreement of the two priors vs the two segger results, MECR and counts before/after, and a printed verdict. |
 | 04 | `04_annotation_probe_based.R` | R | Cell type calling from the transcriptomics: clustering (`RES_CLUSTERS`), FindAllMarkers, dot plot of canonical markers (`CANONICAL_MARKERS`) + top markers per cluster, each cluster in the tissue. You name the clusters in `CLUSTER_TO_CELLTYPE` / `CLUSTER_TO_LINEAGE` (config.R), starting from the template 04 writes to `annotation/`. |
+| 04 (TMA) | `04_annotation_hierarchical.R` | R | Multi-organ TMAs: L1 lineage on all cells of both TMAs, then immune (all organs together), stroma (all organs together) and epithelial / neuroendocrine cells per organ family (`config/annotation_families.csv`, normal + tumour together). Per group: clustering, markers, dot plot, UMAP, organ composition and a label template `annotation/04_<seg>_<group>.csv` (pre-filled suggestions; edit `label`, re-run). |
 | 05 | `05_tma_first_insights.R` | R | Aim 1 and Aim 2 analyses (see table above) plus cellular niches. |
 | 07 | `07_register_modalities.py` | Py | With `--mode he`: transform from the H&E (Xenium slide) to Xenium µm, used by 09. (Its `--mode cellscape` is parked with the CellScape steps.) |
 | 09 | `09_he_regions.R` | R | Pathology regions drawn on H&E (QuPath GeoJSON) → transformed → assigned to cells → composition and immune targets per region. |
@@ -99,7 +100,8 @@ H&E (Xenium slide) ─► 07 register H&E → Xenium (--mode he) ─► QuPath r
    python 03d_segger_priors.py --slide-id <slide> --xenium-dir <xenium_outs> --project-dir $EXP1_PROJECT_DIR --segger-repo <segger clone>   # GPU; needs 03a --save-masks
    Rscript 03c_segmentation_benchmark.R                               # choose SEGMENTATION; re-run 01-02
    Rscript 03e_segger_prior_comparison.R                              # segger from 10x vs from cellpose
-   Rscript 04_annotation_probe_based.R                                # edit annotation/*.csv, re-run
+   Rscript 04_annotation_probe_based.R                                # single-tissue data (e.g. Swiss rolls)
+   Rscript 04_annotation_hierarchical.R                               # multi-organ TMAs: edit annotation/04_<seg>_*.csv, re-run
    Rscript 05_tma_first_insights.R
    python 07_register_modalities.py --mode he --project-dir $EXP1_PROJECT_DIR --slide-id <slide> \
        --xenium-dir <xenium outs> --moving-image <xenium-slide H&E> --refine image

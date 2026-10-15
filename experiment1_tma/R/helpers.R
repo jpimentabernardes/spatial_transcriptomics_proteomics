@@ -830,7 +830,8 @@ tau_index <- function(x) {
 ## epithelial types are still told apart in the tissue. Same colours in every
 ## 04 figure (UMAP, sections, composition, gallery).
 LINEAGE_HUES <- c(Epithelial = 245, Immune = 35, Fibroblast = 150,      # HCL hue centres (degrees)
-                  Smooth_muscle_pericyte = 80, Endothelial = 345, Neural_glia = 115)
+                  Smooth_muscle_pericyte = 80, Endothelial = 345, Neural_glia = 115,
+                  Mesenchymal = 150, Neural_NE = 115)
 celltype_palette <- function(cell_type, lineage) {
   d <- unique(data.frame(cell_type = as.character(cell_type), lineage = as.character(lineage)))
   d <- d[!is.na(d$cell_type) & !duplicated(d$cell_type), ]

@@ -104,6 +104,13 @@ CORE_MIN_MEDIAN_COUNTS <- 20
 N_PCS            <- 30
 USE_HARMONY      <- TRUE     # correct slide effects, NOT organ/patient effects
 RES_CLUSTERS     <- 0.8      # 04: clustering of all cells (ST_clusters); higher = more, finer clusters
+## 04_annotation_hierarchical.R (multi-organ TMAs): resolution per level, organ -> family map
+RES_LINEAGE      <- 0.3      # L1 lineage clustering of all cells
+RES_IMMUNE       <- 0.8      # immune cells, all organs together
+RES_STROMA       <- 0.5      # mesenchymal + endothelial, all organs together
+RES_EPITHELIAL   <- 0.6      # epithelial / neuroendocrine cells, per family
+MIN_CELLS_GROUP  <- 500      # smaller groups are not sub-clustered
+ANNOT_FAMILIES_CSV <- file.path(CONFIG_DIR, "annotation_families.csv")
 RES_LEVEL1       <- 0.3      # 06 (CellScape): lineage clustering
 RES_LEVEL2       <- 0.6      # 06 (CellScape): sub-clustering within a lineage
 TOP_N_PER_CLUSTER <- 5       # 04: top FindAllMarkers genes per cluster shown in the dot plot
