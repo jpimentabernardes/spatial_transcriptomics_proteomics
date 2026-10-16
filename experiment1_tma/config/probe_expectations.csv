@@ -1,13 +1,423 @@
-gene,panel,category,expected_lineage,expected_cell_type
-PTPRC,colon,immune_target,Immune,
-CD3E,colon,immune_target,Immune,T_cell
-CD8A,colon,immune_target,Immune,CD8_T
-CD4,colon,immune_target,Immune,CD4_T
-FOXP3,colon,immune_target,Immune,Treg
-MS4A1,colon,immune_target,Immune,B_cell
-CD68,colon,immune_target,Immune,Macrophage
-EPCAM,colon,lineage_control,Epithelial,
-COL1A1,colon,lineage_control,Fibroblast,
-PECAM1,colon,lineage_control,Endothelial,
-REPLACE_CUSTOM_GENE_1,custom,immune_target,Immune,
-REPLACE_CUSTOM_GENE_2,custom,immune_target,Immune,
+gene,panel,category,expected_lineage,expected_cell_type,annotation_10x
+CD274,custom,immune_signalling,,,
+CX3CR1,custom,immune_cell,Immune,Monocyte_macrophage,
+IFNG,custom,immune_cell,Immune,T_NK,
+IFNGR1,custom,immune_signalling,,,
+IFNGR2,custom,immune_signalling,,,
+IL13,custom,immune_cell,Immune,T_ILC2_mast,
+IL4,custom,immune_cell,Immune,T_mast,
+IL6,custom,immune_signalling,,,
+NCAM1,custom,immune_signalling,,,
+PDCD1,custom,immune_cell,Immune,T_cell,
+SLAMF6,custom,immune_cell,Immune,T_NK,
+IL10,custom,immune_cell,Immune,T_myeloid,
+IL12B,custom,immune_cell,Immune,DC_macrophage,
+IL17A,custom,immune_cell,Immune,Th17_ILC3,
+IL23A,custom,immune_cell,Immune,DC_macrophage,
+OSM,custom,immune_cell,Immune,Myeloid,
+TNF,custom,immune_cell,Immune,Myeloid_T,
+IL17F,custom,immune_cell,Immune,Th17_ILC3,
+IL21,custom,immune_cell,Immune,Tfh,
+IL33,custom,immune_signalling,,,
+TGFB1,custom,immune_signalling,,,
+TSLP,custom,immune_signalling,,,
+IL18,custom,immune_signalling,,,
+IL5,custom,immune_cell,Immune,Th2_ILC2,
+IL13RA2,custom,immune_signalling,,,
+IL23R,custom,immune_cell,Immune,Th17_ILC3,
+TNFRSF1B,custom,immune_signalling,,,
+IL2RA,custom,immune_cell,Immune,Treg,
+IL4R,custom,immune_signalling,,,
+IL6R,custom,immune_signalling,,,
+OSMR,custom,immune_signalling,,,
+IL12RB1,custom,immune_cell,Immune,T_NK,
+IL13RA1,custom,immune_signalling,,,
+IL17RA,custom,immune_signalling,,,
+IL6ST,custom,immune_signalling,,,
+TNFRSF1A,custom,immune_signalling,,,
+CXCL8,custom,immune_signalling,,,
+ITGA4,custom,immune_cell,Immune,lymphocyte,
+ITGB7,custom,immune_cell,Immune,lymphocyte,
+MADCAM1,custom,non_immune,Endothelial,,
+CCL2,custom,immune_signalling,,,
+CX3CL1,custom,immune_signalling,,,
+CXCL10,custom,immune_signalling,,,
+CXCL13,custom,immune_signalling,,,
+CXCL9,custom,immune_signalling,,,
+CXCL1,custom,immune_signalling,,,
+LAG3,custom,immune_cell,Immune,T_cell,
+LGALS9,custom,immune_signalling,,,
+TNFRSF4,custom,immune_cell,Immune,T_cell,
+TNFSF4,custom,immune_signalling,,,
+HAVCR2,custom,immune_cell,Immune,T_myeloid,
+BTLA,custom,immune_cell,Immune,lymphocyte,
+CD226,custom,immune_cell,Immune,T_NK,
+CD28,custom,immune_cell,Immune,T_cell,
+CD40,custom,immune_cell,Immune,B_DC,
+ICOSLG,custom,immune_signalling,,,
+FCGR3A,custom,immune_cell,Immune,NK_monocyte,
+KLRC1,custom,immune_cell,Immune,NK,
+KLRK1,custom,immune_cell,Immune,NK_CD8,
+NCR1,custom,immune_cell,Immune,NK,
+EOMES,custom,immune_cell,Immune,NK_CD8,
+JAK1,custom,immune_signalling,,,
+S1PR1,custom,immune_signalling,,,
+STAT3,custom,immune_signalling,,,
+GATA3,custom,immune_signalling,,,
+JAK3,custom,immune_cell,Immune,lymphocyte,
+TBX21,custom,immune_cell,Immune,Th1_NK,
+TYK2,custom,immune_signalling,,,
+STAT1,custom,immune_signalling,,,
+TCF7,custom,immune_cell,Immune,T_cell,
+ACTA2,custom,non_immune,Mesenchymal,,
+COL1A1,custom,non_immune,Mesenchymal,,
+MMP12,custom,immune_cell,Immune,Macrophage,
+MMP3,custom,non_immune,Mesenchymal,,
+REG3A,custom,non_immune,Epithelial,,
+DEFA5,custom,non_immune,Epithelial,,
+NOS2,custom,immune_signalling,,,
+REG1A,custom,non_immune,Epithelial,,
+TREM1,custom,immune_cell,Immune,Neutrophil_monocyte,
+SPP1,custom,immune_signalling,,,
+ITGAM,custom,immune_cell,Immune,Myeloid,
+VSIG4,custom,immune_cell,Immune,Macrophage,
+ALOX15,custom,immune_signalling,,,
+FCER1A,custom,immune_cell,Immune,Mast_DC,
+IFI44,custom,immune_signalling,,,
+S100A9,custom,immune_signalling,,,
+CSF3R,custom,immune_cell,Immune,Neutrophil,
+PTGDS,custom,non_immune,,,
+KRT7,custom,non_immune,Epithelial,,
+SLC6A14,custom,non_immune,Epithelial,,
+SIGLEC8,custom,immune_cell,Immune,Eosinophil_mast,
+CD80,custom,immune_cell,Immune,DC,
+CD86,custom,immune_cell,Immune,DC_macrophage,
+IL25,custom,immune_signalling,,,
+RNASE3,custom,immune_cell,Immune,Eosinophil,
+ISG15,custom,immune_signalling,,,
+IFNAR1,custom,immune_signalling,,,
+GDF15,custom,non_immune,,,
+IL27,custom,immune_cell,Immune,DC_macrophage,
+TGFBR1,custom,immune_signalling,,,
+ABCC8,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+ADH1C,colon,epithelial,Epithelial,,progenitor cell; absorptive cell
+ADRA2A,colon,epithelial,Epithelial,,paneth cell of colon; BEST4+ epithelial cell
+AFAP1L2,colon,epithelial,Epithelial,,tuft cell
+AGTR1,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+AKR1C3,colon,epithelial,Epithelial,,progenitor cell; absorptive cell
+AKR7A3,colon,epithelial,Epithelial,,progenitor cell
+ALDH1B1,colon,epithelial,Epithelial,,stem cell
+ANK2,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+ANO7,colon,epithelial,Epithelial,,colon goblet cell
+ANXA1,colon,mixed,,,T-helper 1 cell; tuft cell
+ANXA13,colon,epithelial,Epithelial,,colon goblet cell
+APOE,colon,immune_cell,Immune,,colon macrophage
+AQP1,colon,epithelial,Epithelial,,stem cell
+AQP8,colon,epithelial,Epithelial,,enterocyte of colon
+AREG,colon,mixed,,,paneth cell of colon; innate lymphoid cell
+ARHGAP24,colon,immune_cell,Immune,,memory B cell
+ARX,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+ASCL2,colon,epithelial,Epithelial,,stem cell
+ATOH1,colon,epithelial,Epithelial,,colon goblet cell
+AVIL,colon,epithelial,Epithelial,,tuft cell
+AZGP1,colon,epithelial,Epithelial,,colon cancer
+B3GNT6,colon,epithelial,Epithelial,,colon goblet cell
+BANK1,colon,immune_cell,Immune,,memory B cell
+BATF,colon,immune_cell,Immune,,T follicular helper cell
+BCAS1,colon,epithelial,Epithelial,,colon goblet cell
+BEST2,colon,epithelial,Epithelial,,colon goblet cell
+BEST4,colon,epithelial,Epithelial,,paneth cell of colon; BEST4+ epithelial cell
+BMX,colon,epithelial,Epithelial,,tuft cell
+BRCA2,colon,epithelial,Epithelial,,secretory progenitor cell
+C1QA,colon,immune_cell,Immune,,colon macrophage
+C1QB,colon,immune_cell,Immune,,dendritic cell
+C1QBP,colon,epithelial,Epithelial,,progenitor cell
+C1QC,colon,immune_cell,Immune,,colon macrophage
+C2orf88,colon,epithelial,Epithelial,,enterocyte of colon
+CA1,colon,epithelial,Epithelial,,enterocyte of colon; absorptive cell
+CA2,colon,epithelial,Epithelial,,enterocyte of colon; absorptive cell
+CA4,colon,epithelial,Epithelial,,paneth cell of colon; BEST4+ epithelial cell
+CA7,colon,epithelial,Epithelial,,paneth cell of colon; BEST4+ epithelial cell
+CADPS,colon,mixed,,,enteroendocrine cell of colon; mast cell
+CALB2,colon,immune_cell,Immune,,mast cell
+CCL20,colon,immune_cell,Immune,,T-helper 17 cell
+CCL4,colon,immune_cell,Immune,,"CD8-positive, alpha-beta T cell"
+CCL5,colon,immune_cell,Immune,,gamma-delta T cell
+CCR7,colon,immune_cell,Immune,,memory T cell
+CD14,colon,immune_cell,Immune,,macrophage
+CD163,colon,immune_cell,Immune,,macrophage
+CD177,colon,epithelial,Epithelial,,enterocyte of colon
+CD2,colon,immune_cell,Immune,,"CD4-positive, alpha-beta T cell"
+CD24,colon,immune_cell,Immune,,memory B cell
+CD3D,colon,immune_cell,Immune,,"CD4-positive, alpha-beta T cell"
+CD3E,colon,immune_cell,Immune,,memory T cell
+CD3G,colon,immune_cell,Immune,,"CD4-positive, alpha-beta T cell"
+CD40LG,colon,immune_cell,Immune,,T-helper 1 cell
+CD5,colon,immune_cell,Immune,,T-helper 1 cell
+CD6,colon,immune_cell,Immune,,T follicular helper cell
+CD7,colon,immune_cell,Immune,,gamma-delta T cell
+CD79A,colon,immune_cell,Immune,,B cell
+CD79B,colon,immune_cell,Immune,,follicular B cell
+CD83,colon,immune_cell,Immune,,memory B cell
+CD8A,colon,immune_cell,Immune,,"CD8-positive, alpha-beta T cell"
+CD8B,colon,immune_cell,Immune,,"CD8-positive, alpha-beta T cell"
+CDCA7,colon,epithelial,Epithelial,,stem cell
+CDHR5,colon,epithelial,Epithelial,,enterocyte of colon
+CDK15,colon,immune_cell,Immune,,mast cell
+CDK6,colon,epithelial,Epithelial,,stem cell
+CDKN2B,colon,epithelial,Epithelial,,enterocyte of colon
+CEACAM1,colon,epithelial,Epithelial,,enterocyte of colon
+CEACAM5,colon,epithelial,Epithelial,,BEST4+ epithelial cell
+CEACAM6,colon,epithelial,Epithelial,,paneth cell of colon; BEST4+ epithelial cell
+CEACAM7,colon,epithelial,Epithelial,,enterocyte of colon; BEST4+ epithelial cell
+CEP126,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+CES1,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+CES2,colon,epithelial,Epithelial,,progenitor cell; absorptive cell
+CFTR,colon,epithelial,Epithelial,,progenitor cell; absorptive cell
+CHGA,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+CHGB,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+CHI3L2,colon,immune_cell,Immune,,follicular B cell
+CHP2,colon,epithelial,Epithelial,,absorptive cell
+CKAP4,colon,epithelial,Epithelial,,secretory progenitor cell
+CLCA1,colon,epithelial,Epithelial,,colon goblet cell
+CLCA4,colon,epithelial,Epithelial,,enterocyte of colon
+CLEC9A,colon,immune_cell,Immune,,dendritic cell
+CLU,colon,immune_cell,Immune,,mast cell
+CMA1,colon,immune_cell,Immune,,mast cell
+CMBL,colon,epithelial,Epithelial,,progenitor cell; absorptive cell
+COL17A1,colon,epithelial,Epithelial,,enterocyte of colon; absorptive cell
+COL19A1,colon,immune_cell,Immune,,follicular B cell
+CPA3,colon,immune_cell,Immune,,mast cell
+CPE,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+CREB3L1,colon,epithelial,Epithelial,,colon goblet cell
+CRYBA2,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+CST7,colon,immune_cell,Immune,,"CD8-positive, alpha-beta T cell"
+CTLA4,colon,immune_cell,Immune,,regulatory T cell
+CTSB,colon,immune_cell,Immune,,colon macrophage
+CTSE,colon,epithelial,Epithelial,,paneth cell of colon
+CTSG,colon,immune_cell,Immune,,mast cell
+CXCL3,colon,epithelial,Epithelial,,progenitor cell
+CXCR4,colon,immune_cell,Immune,,T-helper 1 cell
+CXCR5,colon,immune_cell,Immune,,T follicular helper cell
+CYBB,colon,immune_cell,Immune,,macrophage
+DEPP1,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+DERL3,colon,immune_cell,Immune,,IgA plasma cell
+DMBT1,colon,epithelial,Epithelial,,paneth cell of colon; BEST4+ epithelial cell
+DNAJC12,colon,epithelial,Epithelial,,colon goblet cell
+DNASE1L3,colon,immune_cell,Immune,,conventional dendritic cell
+DPYSL3,colon,epithelial,Epithelial,,colon cancer
+DUOX2,colon,epithelial,Epithelial,,enterocyte of colon
+EBPL,colon,epithelial,Epithelial,,progenitor cell
+EGFR,colon,epithelial,Epithelial,,colon cancer
+EPHB3,colon,epithelial,Epithelial,,stem cell
+ETS1,colon,immune_cell,Immune,,T-helper 1 cell
+ETV1,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+FABP2,colon,epithelial,Epithelial,,colon goblet cell
+FCER2,colon,immune_cell,Immune,,follicular B cell
+FCN1,colon,immune_cell,Immune,,monocyte
+FCRL1,colon,immune_cell,Immune,,follicular B cell
+FCRLA,colon,immune_cell,Immune,,memory B cell
+FERMT1,colon,epithelial,Epithelial,,stem cell
+FEV,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+FFAR4,colon,epithelial,Epithelial,,colon goblet cell
+FKBP11,colon,immune_cell,Immune,,IgA plasma cell
+FOXA3,colon,epithelial,Epithelial,,colon goblet cell
+FOXP3,colon,immune_cell,Immune,,regulatory T cell
+FRZB,colon,epithelial,Epithelial,,colon goblet cell
+FYB1,colon,epithelial,Epithelial,,tuft cell
+FZD7,colon,epithelial,Epithelial,,colon cancer
+GALNT5,colon,epithelial,Epithelial,,colon goblet cell
+GALNT8,colon,epithelial,Epithelial,,colon goblet cell
+GATA2,colon,immune_cell,Immune,,mast cell
+GCG,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+GIMAP7,colon,immune_cell,Immune,,T follicular helper cell
+GNA11,colon,epithelial,Epithelial,,enterocyte of colon
+GNLY,colon,immune_cell,Immune,,natural killer cell
+GPR183,colon,immune_cell,Immune,,"CD4-positive, alpha-beta T cell"
+GPRC5C,colon,epithelial,Epithelial,,paneth cell of colon
+GPRIN3,colon,immune_cell,Immune,,T follicular helper cell
+GUCA2A,colon,epithelial,Epithelial,,BEST4+ epithelial cell
+GUCA2B,colon,epithelial,Epithelial,,BEST4+ epithelial cell
+GZMA,colon,immune_cell,Immune,,gamma-delta T cell
+GZMK,colon,immune_cell,Immune,,"CD8-positive, alpha-beta T cell"
+HDC,colon,immune_cell,Immune,,mast cell
+HEPACAM2,colon,epithelial,Epithelial,,colon goblet cell
+HES6,colon,epithelial,Epithelial,,colon goblet cell; secretory progenitor cell
+HHLA2,colon,epithelial,Epithelial,,enterocyte of colon
+HMGB2,colon,epithelial,Epithelial,,transit amplifying cell of colon; secretory progenitor cell
+HPGDS,colon,mixed,,,mast cell; tuft cell
+HRCT1,colon,epithelial,Epithelial,,paneth cell of colon
+HTR3E,colon,epithelial,Epithelial,,tuft cell
+ICOS,colon,immune_cell,Immune,,T follicular helper cell
+ID2,colon,immune_cell,Immune,,T-helper 1 cell
+IER5,colon,immune_cell,Immune,,memory B cell
+IFITM1,colon,immune_cell,Immune,,memory T cell
+IGFBP7,colon,epithelial,Epithelial,,colon cancer
+IL17RB,colon,epithelial,Epithelial,,tuft cell
+IL1B,colon,immune_cell,Immune,,monocyte
+IL1RAPL1,colon,immune_cell,Immune,,mast cell
+IL1RL1,colon,immune_cell,Immune,,mast cell
+IL22,colon,immune_cell,Immune,,T-helper 17 cell
+IL32,colon,mixed,,,enterocyte of colon; regulatory T cell
+IL4I1,colon,immune_cell,Immune,,innate lymphoid cell
+IL7R,colon,immune_cell,Immune,,T-helper 17 cell
+IMPDH2,colon,epithelial,Epithelial,,progenitor cell; stem cell
+INSL5,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+INSM1,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+IRF8,colon,immune_cell,Immune,,memory B cell
+ISL1,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+ITK,colon,immune_cell,Immune,,T follicular helper cell
+ITLN1,colon,epithelial,Epithelial,,colon goblet cell
+KIF5C,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+KIT,colon,immune_cell,Immune,,mast cell
+KLK1,colon,epithelial,Epithelial,,colon goblet cell
+KLRB1,colon,immune_cell,Immune,,T-helper 1 cell
+KLRC2,colon,immune_cell,Immune,,gamma-delta T cell
+KLRD1,colon,immune_cell,Immune,,natural killer cell
+KRT1,colon,immune_cell,Immune,,mast cell
+KRT86,colon,immune_cell,Immune,,innate lymphoid cell
+KRTCAP3,colon,epithelial,Epithelial,,progenitor cell
+L1TD1,colon,epithelial,Epithelial,,stem cell
+LCN2,colon,epithelial,Epithelial,,progenitor cell
+LEF1,colon,immune_cell,Immune,,memory T cell
+LEFTY1,colon,epithelial,Epithelial,,progenitor cell; stem cell
+LEPROTL1,colon,immune_cell,Immune,,memory T cell
+LGALS2,colon,mixed,,,progenitor cell; conventional dendritic cell; absorptive cell
+LGR5,colon,epithelial,Epithelial,,stem cell
+LILRA4,colon,immune_cell,Immune,,dendritic cell; macrophage
+LRMP,colon,epithelial,Epithelial,,tuft cell
+LTB,colon,immune_cell,Immune,,regulatory T cell
+LYVE1,colon,immune_cell,Immune,,macrophage
+MAF,colon,immune_cell,Immune,,regulatory T cell
+MAOB,colon,immune_cell,Immune,,mast cell
+MB,colon,epithelial,Epithelial,,colon goblet cell
+MCEMP1,colon,immune_cell,Immune,,monocyte
+MEIS2,colon,immune_cell,Immune,,mast cell
+MKI67,colon,mixed,,,transit amplifying cell of colon; dendritic cell
+MLPH,colon,mixed,,,colon goblet cell; mast cell
+MS4A1,colon,immune_cell,Immune,,memory B cell
+MS4A12,colon,epithelial,Epithelial,,enterocyte of colon
+MS4A2,colon,immune_cell,Immune,,mast cell
+MS4A7,colon,immune_cell,Immune,,colon macrophage
+MS4A8,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+MSLN,colon,epithelial,Epithelial,,paneth cell of colon
+MT1A,colon,epithelial,Epithelial,,stem cell
+MUC12,colon,epithelial,Epithelial,,enterocyte of colon; absorptive cell
+MYH14,colon,epithelial,Epithelial,,enterocyte of colon
+NEUROD1,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+NKG7,colon,immune_cell,Immune,,natural killer cell
+NKX2-2,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+NOSIP,colon,immune_cell,Immune,,memory T cell
+NOVA1,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+NXPE4,colon,epithelial,Epithelial,,absorptive cell
+ODF2L,colon,immune_cell,Immune,,T-helper 17 cell
+OLFM4,colon,epithelial,Epithelial,,transit amplifying cell of colon
+OTOP2,colon,epithelial,Epithelial,,paneth cell of colon; BEST4+ epithelial cell
+PAX4,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+PAX5,colon,immune_cell,Immune,,memory B cell
+PBK,colon,epithelial,Epithelial,,transit amplifying cell of colon
+PCLAF,colon,epithelial,Epithelial,,transit amplifying cell of colon
+PDE4C,colon,epithelial,Epithelial,,paneth cell of colon
+PDZK1IP1,colon,epithelial,Epithelial,,stem cell
+PI3,colon,epithelial,Epithelial,,enterocyte of colon
+PLCE1,colon,epithelial,Epithelial,,absorptive cell
+PLPP2,colon,epithelial,Epithelial,,progenitor cell
+PLXND1,colon,epithelial,Epithelial,,colon cancer
+PPP1R1B,colon,epithelial,Epithelial,,progenitor cell
+PRDX4,colon,mixed,,,progenitor cell; IgA plasma cell
+PROX1,colon,epithelial,Epithelial,,colon cancer
+PRPH,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+PSTPIP2,colon,epithelial,Epithelial,,tuft cell
+PTGER4,colon,immune_cell,Immune,,"CD4-positive, alpha-beta T cell"
+PTTG1,colon,epithelial,Epithelial,,transit amplifying cell of colon
+RAB26,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+RAB3B,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+RAP1GAP,colon,epithelial,Epithelial,,colon goblet cell
+RARRES2,colon,epithelial,Epithelial,,stem cell
+RBP4,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+REG4,colon,epithelial,Epithelial,,colon goblet cell
+REP15,colon,epithelial,Epithelial,,colon goblet cell
+RETNLB,colon,epithelial,Epithelial,,colon goblet cell
+RFX6,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+RGMB,colon,epithelial,Epithelial,,stem cell
+RGS13,colon,epithelial,Epithelial,,tuft cell
+RHOV,colon,epithelial,Epithelial,,paneth cell of colon; BEST4+ epithelial cell
+RIIAD1,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+RNASE1,colon,mixed,,,colon goblet cell; macrophage; secretory progenitor cell
+RNF43,colon,epithelial,Epithelial,,stem cell
+ROBO1,colon,epithelial,Epithelial,,colon cancer
+ROBO2,colon,epithelial,Epithelial,,colon cancer
+RORA,colon,immune_cell,Immune,,T-helper 17 cell
+RORC,colon,immune_cell,Immune,,innate lymphoid cell
+RPS4Y1,colon,epithelial,Epithelial,,stem cell
+RRM2,colon,epithelial,Epithelial,,transit amplifying cell of colon; secretory progenitor cell
+RUNX1T1,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+S100A12,colon,immune_cell,Immune,,monocyte
+S100P,colon,epithelial,Epithelial,,paneth cell of colon
+SCG2,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+SCG3,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+SCG5,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+SCGN,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+SCNN1A,colon,epithelial,Epithelial,,colon goblet cell
+SDCBP2,colon,epithelial,Epithelial,,paneth cell of colon; BEST4+ epithelial cell
+SEC11C,colon,mixed,,,enteroendocrine cell of colon; IgA plasma cell
+SELENBP1,colon,epithelial,Epithelial,,absorptive cell
+SELENOK,colon,epithelial,Epithelial,,colon goblet cell
+SELENOM,colon,epithelial,Epithelial,,colon goblet cell
+SELL,colon,immune_cell,Immune,,memory T cell
+SERPINA1,colon,mixed,,,colon goblet cell; monocyte
+SFXN1,colon,immune_cell,Immune,,T follicular helper cell
+SH2D6,colon,epithelial,Epithelial,,tuft cell
+SH2D7,colon,epithelial,Epithelial,,tuft cell
+SIT1,colon,immune_cell,Immune,,"CD8-positive, alpha-beta T cell"
+SLC12A2,colon,epithelial,Epithelial,,stem cell
+SLC18A2,colon,immune_cell,Immune,,mast cell
+SLC26A2,colon,epithelial,Epithelial,,enterocyte of colon; absorptive cell
+SLC26A3,colon,epithelial,Epithelial,,enterocyte of colon; absorptive cell
+SLC29A4,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+SLC6A8,colon,epithelial,Epithelial,,enterocyte of colon
+SLPI,colon,epithelial,Epithelial,,paneth cell of colon
+SMIM14,colon,mixed,,,colon goblet cell; memory B cell
+SMIM6,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+SMOC2,colon,epithelial,Epithelial,,stem cell
+SOCS3,colon,immune_cell,Immune,,T follicular helper cell
+SOX9,colon,epithelial,Epithelial,,stem cell
+SPDEF,colon,epithelial,Epithelial,,colon goblet cell
+SPIB,colon,epithelial,Epithelial,,paneth cell of colon; BEST4+ epithelial cell
+SPOCK2,colon,immune_cell,Immune,,T-helper 17 cell
+STMN1,colon,mixed,,,transit amplifying cell of colon; dendritic cell; secretory progenitor cell
+STXBP6,colon,epithelial,Epithelial,,stem cell
+SULT1B1,colon,epithelial,Epithelial,,absorptive cell
+SVOPL,colon,immune_cell,Immune,,mast cell
+TBC1D4,colon,immune_cell,Immune,,regulatory T cell
+TCL1A,colon,immune_cell,Immune,,follicular B cell
+TFF1,colon,epithelial,Epithelial,,colon goblet cell
+THBS1,colon,immune_cell,Immune,,monocyte
+TIGIT,colon,immune_cell,Immune,,regulatory T cell
+TIMP3,colon,immune_cell,Immune,,mast cell
+TK1,colon,epithelial,Epithelial,,transit amplifying cell of colon; secretory progenitor cell
+TKT,colon,epithelial,Epithelial,,progenitor cell
+TMEM61,colon,epithelial,Epithelial,,colon goblet cell
+TMIGD1,colon,epithelial,Epithelial,,enterocyte of colon
+TNFAIP3,colon,immune_cell,Immune,,T-helper 17 cell
+TNFRSF17,colon,immune_cell,Immune,,IgA plasma cell
+TNFRSF25,colon,immune_cell,Immune,,innate lymphoid cell
+TNFSF13B,colon,immune_cell,Immune,,innate lymphoid cell
+TRAC,colon,immune_cell,Immune,,"CD4-positive, alpha-beta T cell"
+TRAT1,colon,immune_cell,Immune,,"CD4-positive, alpha-beta T cell"
+TRBC1,colon,immune_cell,Immune,,memory T cell
+TRBC2,colon,immune_cell,Immune,,regulatory T cell
+TRDV1,colon,immune_cell,Immune,,gamma-delta T cell
+TRGV4,colon,immune_cell,Immune,,gamma-delta T cell
+TRPM5,colon,epithelial,Epithelial,,tuft cell
+TTR,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+TUBB,colon,epithelial,Epithelial,,transit amplifying cell of colon; secretory progenitor cell
+TYMS,colon,mixed,,,transit amplifying cell of colon; dendritic cell
+UBE2C,colon,mixed,,,transit amplifying cell of colon; dendritic cell; secretory progenitor cell
+UCN3,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+UGT2A3,colon,epithelial,Epithelial,,absorptive cell
+UGT2B17,colon,epithelial,Epithelial,,absorptive cell
+VCAN,colon,immune_cell,Immune,,monocyte
+VWA5B2,colon,enteroendocrine,Neural_NE,,enteroendocrine cell of colon
+WFDC2,colon,epithelial,Epithelial,,colon goblet cell; secretory progenitor cell
+XCL2,colon,immune_cell,Immune,,natural killer cell
