@@ -82,6 +82,7 @@ meta$region <- dplyr::case_when(meta$family %in% GI_FAMILIES ~ "GI_glandular",
                                 organ_group %in% "Gastro" ~ "Gastro_other",
                                 TRUE ~ "non_GI")
 REGIONS <- c("GI_glandular", "Gastro_other", "non_GI")
+LINEAGES_05 <- c("Immune", "Epithelial", "Mesenchymal", "Endothelial", "Neural_NE")
 
 meta <- meta[!is.na(meta$core_id), ]
 counts <- counts[, rownames(meta)]
@@ -363,20 +364,90 @@ if (nrow(lin_probes) > 0) {
   }))
   lin_spec$region <- ifelse(lin_spec$family %in% GI_FAMILIES, "GI_glandular", "other")
   save_table(lin_spec, "05_aim1_lineage_specificity")
-  hm <- lin_spec[lin_spec$panel == "custom" & lin_spec$n_expected_cells >= 50, ]
-  if (nrow(hm) > 0) {
-    hm$family <- factor(hm$family, levels = fam_order)
-    p_lin <- ggplot(hm, aes(family, gene, fill = pmax(pmin(log2(enrichment), 4), -4))) +
-      geom_tile(color = "white", linewidth = 0.2) +
-      geom_text(aes(label = sprintf("%.0f", offtarget_vs_bg)), size = 1.9) +
-      scale_fill_gradient2(low = "#2166AC", mid = "white", high = "#B2182B", midpoint = 0, name = "log2\nenrichment") +
-      facet_grid(expected_lineage ~ ., scales = "free_y", space = "free_y") + theme_bw(base_size = 10) +
-      theme(axis.text.x = element_text(angle = 40, hjust = 1), strip.text.y = element_text(angle = 0),
-            panel.grid = element_blank()) +
-      labs(x = NULL, y = NULL,
-           title = "Aim 1: custom probes -- enrichment in their expected lineage, per family",
-           subtitle = "red = on target in that family; label = off-target signal / negative-control background (per cell)")
-    save_fig(p_lin, "05_aim1_lineage_specificity", width = 11, height = max(6, 0.16 * length(unique(hm$gene)) + 2))
+  save_table(lin_spec |> filter(n_expected_cells >= 50), "05_aim1_lineage_specificity_min50cells")
+
+  ## (a) Where does each custom probe's signal go? Share of the gene's counts per
+  ##     lineage, GI vs non-GI cores. Top bar = share of ALL transcripts per
+  ##     lineage (what a probe without any cell-type preference would show).
+  reg2 <- ifelse(meta$region == "GI_glandular", "GI glandular cores", "non-GI cores")
+  lin2 <- ifelse(meta$lineage %in% LINEAGES_05, meta$lineage, "other")
+  g2 <- paste(reg2, lin2, sep = "||")
+  pb2 <- as.matrix(pseudobulk(counts[custom_genes, , drop = FALSE], g2))
+  tot2 <- tapply(meta$nCount_Xenium, g2, sum)[colnames(pb2)]
+  cn <- data.frame(group = colnames(pb2), region = sub("\\|\\|.*$", "", colnames(pb2)),
+                   lineage = sub("^.*\\|\\|", "", colnames(pb2)))
+  shares <- dplyr::bind_rows(lapply(unique(cn$region), function(r) {
+    cols <- cn$group[cn$region == r]
+    m <- pb2[, cols, drop = FALSE]
+    sh <- sweep(m, 1, pmax(rowSums(m), 1), "/")
+    base <- tot2[cols] / sum(tot2[cols])
+    rbind(data.frame(gene = rep(rownames(sh), ncol(sh)), region = r,
+                     lineage = rep(cn$lineage[match(cols, cn$group)], each = nrow(sh)),
+                     share = as.vector(sh), counts = as.vector(m)),
+          data.frame(gene = "(all transcripts)", region = r, lineage = cn$lineage[match(cols, cn$group)],
+                     share = as.numeric(base), counts = as.numeric(tot2[cols])))
+  }))
+  shares$category <- ifelse(shares$gene == "(all transcripts)", "reference", gene_cat(shares$gene))
+  shares$expected_lineage <- ifelse(shares$gene %in% probes$gene, probes[shares$gene, "expected_lineage"], "")
+  save_table(shares, "05_aim1_custom_signal_share_by_lineage")
+  imm_share <- shares |> filter(region == "non-GI cores", lineage == "Immune") |> select(gene, imm = share)
+  shares$gene <- factor(shares$gene, levels = unique(c(imm_share$gene[order(imm_share$imm)], "(all transcripts)")))
+  shares$category <- factor(shares$category, levels = c("reference", "immune_cell", "immune_signalling", "non_immune"))
+  lin_lv <- c(LINEAGES_05, "other")
+  pal05 <- c(celltype_palette(LINEAGES_05, LINEAGES_05), other = "#BDBDBD")
+  shares$lineage <- factor(shares$lineage, levels = lin_lv)
+  p_share <- ggplot(shares, aes(share, gene, fill = lineage)) +
+    geom_col(width = 0.85) +
+    facet_grid(category ~ region, scales = "free_y", space = "free_y") +
+    scale_fill_manual(values = pal05, name = "lineage of the\ncells with the counts") +
+    scale_x_continuous(labels = scales::percent, expand = c(0, 0)) + theme_bw(base_size = 10) +
+    theme(strip.text.y = element_text(angle = 0), panel.grid = element_blank()) +
+    labs(x = "share of the gene's counts", y = NULL,
+         title = "Aim 1: in which cells does each custom probe's signal land?",
+         subtitle = paste0("immune_cell genes should be mostly Immune colour, clearly more than the '(all transcripts)' bar; ",
+                           "similar bars in GI and non-GI = the probe behaves the same outside the gut"))
+  save_fig(p_share, "05_aim1_custom_signal_by_lineage", width = 13, height = max(7, 0.15 * length(custom_genes) + 3))
+
+  ## (b) One number per gene: on-target enrichment in GI vs non-GI cores.
+  ##     enrichment = share of the gene in its expected lineage / share of all transcripts there
+  ##     (1 = no preference). On the diagonal = equally specific in and outside the gut.
+  enr <- dplyr::bind_rows(lapply(c("GI glandular cores", "non-GI cores"), function(r) {
+    lp <- lin_probes[lin_probes$expected_lineage %in% LINEAGES_05, ]
+    cols <- cn$group[cn$region == r]
+    g_all <- if (length(cols)) {
+      pbx <- as.matrix(pseudobulk(counts[lp$gene, reg2 == r, drop = FALSE], lin2[reg2 == r]))
+      pbx
+    } else NULL
+    if (is.null(g_all)) return(NULL)
+    totr <- tapply(meta$nCount_Xenium[reg2 == r], lin2[reg2 == r], sum)
+    data.frame(gene = lp$gene, panel = lp$panel, category = lp$category, expected_lineage = lp$expected_lineage, region = r,
+               enrichment = sapply(seq_len(nrow(lp)), function(j) {
+                 L <- lp$expected_lineage[j]
+                 if (!L %in% colnames(g_all) || sum(g_all[j, ]) == 0) return(NA)
+                 (g_all[j, L] / sum(g_all[j, ])) / (totr[[L]] / sum(totr))
+               }))
+  }))
+  enr_w <- enr |> select(gene, panel, category, expected_lineage, region, enrichment) |>
+    tidyr::pivot_wider(names_from = region, values_from = enrichment)
+  colnames(enr_w)[colnames(enr_w) == "GI glandular cores"] <- "enrich_GI"
+  colnames(enr_w)[colnames(enr_w) == "non-GI cores"] <- "enrich_nonGI"
+  save_table(enr_w, "05_aim1_on_target_enrichment_GI_vs_nonGI")
+  pl <- enr_w[is.finite(enr_w$enrich_GI) & is.finite(enr_w$enrich_nonGI), ]
+  if (nrow(pl) > 0) {
+    lim <- range(log2(c(pl$enrich_GI, pl$enrich_nonGI)), 0)
+    p_enr <- ggplot(pl, aes(log2(enrich_GI), log2(enrich_nonGI))) +
+      annotate("rect", xmin = -Inf, xmax = 1, ymin = -Inf, ymax = 1, fill = "grey90") +
+      geom_abline(linetype = 2, color = "grey50") +
+      geom_point(aes(color = expected_lineage, shape = panel), size = 2, alpha = 0.8) +
+      scale_color_manual(values = pal05, name = "expected lineage") +
+      coord_equal(xlim = lim, ylim = lim) + theme_bw(base_size = 12) +
+      labs(x = "log2 on-target enrichment, GI glandular cores", y = "log2 on-target enrichment, non-GI cores",
+           title = "Aim 1: is each probe as cell-type specific outside the gut as inside?",
+           subtitle = "grey = less than 2x enriched in its expected lineage; diagonal = same specificity in GI and non-GI")
+    if (requireNamespace("ggrepel", quietly = TRUE))
+      p_enr <- p_enr + ggrepel::geom_text_repel(data = pl[pl$panel == "custom", ], aes(label = gene),
+                                                size = 2.4, max.overlaps = 40, segment.size = 0.2)
+    save_fig(p_enr, "05_aim1_on_target_enrichment_GI_vs_nonGI", width = 10, height = 9)
   }
 }
 
