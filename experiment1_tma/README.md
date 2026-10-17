@@ -49,8 +49,11 @@ H&E (Xenium slide) ─► 07 register H&E → Xenium (--mode he) ─► QuPath r
 | 03c | `03c_segmentation_benchmark.R` | R | 10x vs cellpose vs segger on the same cores: cells called per method and per core, a scorecard (transcripts assigned, counts per cell, **MECR** = contamination, control rate: which method is better in how many cores), and side-by-side DAPI / 10x / cellpose outlines as in 01. |
 | 03d | `03d_segger_priors.py` | Py | segger started twice on the same cores: from the 10x cells and from the cellpose cells (03a masks). Builds both inputs in Xenium format, runs segger, converts (`segger_xenium`, `segger_cellpose` for 03c) and writes, per transcript, its source cell in each segmentation and its segger cell (`transcript_attribution.parquet`). |
 | 03e | `03e_segger_prior_comparison.R` | R | Does segger re-segment each input and which input is worse: transcript fate (kept / moved to another cell / removed / added), per-cell fate, genes moved most, agreement of the two priors vs the two segger results, MECR and counts before/after, and a printed verdict. |
+| 03f | `03f_segmentation_disagreement.py` | Py | Where 10x, cellpose and segger disagree: scans the cores in 50 um tiles (adjusted Rand index of the three cell assignments of the same transcripts + spread in % transcripts assigned), then draws the worst tiles close up: DAPI, each method's outlines, every transcript coloured by its cell and by the lineage of its gene; plus agreement tiles as reference and a per-organ summary. |
+| 03g | `03g_cell_size_tumour_vs_organ.R` | R | TMA_TUMOR vs TMA_ORGAN, per segmentation: cell and nucleus area, transcripts and genes per cell, transcripts per um2; per lineage (immune cells = internal control for slide effects), core medians, all cores and organ-matched (`site`). |
 | 04 | `04_annotation_probe_based.R` | R | Cell type calling from the transcriptomics: clustering (`RES_CLUSTERS`), FindAllMarkers, dot plot of canonical markers (`CANONICAL_MARKERS`) + top markers per cluster, each cluster in the tissue. You name the clusters in `CLUSTER_TO_CELLTYPE` / `CLUSTER_TO_LINEAGE` (config.R), starting from the template 04 writes to `annotation/`. |
 | 04 (TMA) | `04_annotation_hierarchical.R` | R | Multi-organ TMAs: L1 lineage on all cells of both TMAs, then immune (all organs together), stroma (all organs together) and epithelial / neuroendocrine cells per organ family (`config/annotation_families.csv`, normal + tumour together). Per group: clustering, markers, dot plot, UMAP, organ composition and a label template `annotation/04_<seg>_<group>.csv` (pre-filled suggestions; edit `label`, re-run). |
+| 04b | `04b_annotation_per_organ.R` | R | After 04: epithelial / neuroendocrine cell types per organ (`site` in `config/annotation_families.csv`: colon, rectum, ileum, stomach, ...), once normal only and once normal + the tumours of that organ (no Harmony, so tumour vs normal is kept). Templates `annotation/04b_<seg>_Organ_<site>.csv` / `OrganTumour_<site>.csv`; columns `cell_type_organ`, `cell_type_organ_tumour`. |
 | 05 | `05_tma_first_insights.R` | R | Aim 1 and Aim 2 analyses (see table above) plus cellular niches. |
 | 07 | `07_register_modalities.py` | Py | With `--mode he`: transform from the H&E (Xenium slide) to Xenium µm, used by 09. (Its `--mode cellscape` is parked with the CellScape steps.) |
 | 09 | `09_he_regions.R` | R | Pathology regions drawn on H&E (QuPath GeoJSON) → transformed → assigned to cells → composition and immune targets per region. |
@@ -99,9 +102,12 @@ H&E (Xenium slide) ─► 07 register H&E → Xenium (--mode he) ─► QuPath r
    python 03b_segment_segger.py --slide-id <slide> --xenium-dir <xenium_outs> --project-dir $EXP1_PROJECT_DIR --segger-repo <segger clone>
    python 03d_segger_priors.py --slide-id <slide> --xenium-dir <xenium_outs> --project-dir $EXP1_PROJECT_DIR --segger-repo <segger clone>   # GPU; needs 03a --save-masks
    Rscript 03c_segmentation_benchmark.R                               # choose SEGMENTATION; re-run 01-02
+   python 03f_segmentation_disagreement.py --slide-id TMA_ORGAN --xenium-dir <outs> --project-dir <project>
+   Rscript 03g_cell_size_tumour_vs_organ.R                            # tumour vs normal cell size / expression
    Rscript 03e_segger_prior_comparison.R                              # segger from 10x vs from cellpose
    Rscript 04_annotation_probe_based.R                                # single-tissue data (e.g. Swiss rolls)
    Rscript 04_annotation_hierarchical.R                               # multi-organ TMAs: edit annotation/04_<seg>_*.csv, re-run
+   Rscript 04b_annotation_per_organ.R                                 # per organ, with and without tumours
    Rscript 05_tma_first_insights.R
    python 07_register_modalities.py --mode he --project-dir $EXP1_PROJECT_DIR --slide-id <slide> \
        --xenium-dir <xenium outs> --moving-image <xenium-slide H&E> --refine image
