@@ -123,17 +123,34 @@ def read_cells(seg_dir, method, slide):
     return pd.read_csv(f) if os.path.exists(f) else None
 
 
+def cells_in_boxes(cells, boxes):
+    """Number of cells (by centroid) inside each core box."""
+    x, y = cells["x_centroid"].to_numpy(), cells["y_centroid"].to_numpy()
+    return {b.core_id: int(((x >= b.xmin) & (x < b.xmax) & (y >= b.ymin) & (y < b.ymax)).sum())
+            for b in boxes.itertuples(index=False)}
+
+
 def pick_cores(a, cores, organ_of):
-    """Cores in every method's output; at most --max-cores, taken round-robin over organs."""
+    """Cores where every available method has cells (by position, not by core name: 03a / 03b may have
+    run per tile or with an older core table); at most --max-cores, taken round-robin over organs."""
     ids = list(cores["core_id"])
-    for m in ("cellpose", "segger"):
-        c = read_cells(a.seg_dir, m, a.slide_id)
-        if c is not None and "core_id" in c:
-            ids = [i for i in ids if i in set(c["core_id"].dropna())]
-        else:
-            print(f"no {m} cells.csv.gz for {a.slide_id} -- {m} left out of the scan")
     if a.cores:
         ids = [i for i in ids if i in set(a.cores)]
+        if not ids:
+            print(f"none of --cores {a.cores} is in {a.cores_csv}")
+    for m in ("cellpose", "segger"):
+        c = read_cells(a.seg_dir, m, a.slide_id)
+        if c is None or not {"x_centroid", "y_centroid"} <= set(c.columns):
+            print(f"no {m} cells.csv.gz for {a.slide_id} -- {m} not used to choose cores")
+            continue
+        n = cells_in_boxes(c, cores[cores.core_id.isin(ids)])
+        with_cells = [i for i in ids if n.get(i, 0) > 0]
+        print(f"{m}: cells in {len(with_cells)} of {len(ids)} cores")
+        if with_cells:
+            ids = with_cells
+        else:
+            print(f"  WARNING: no {m} cell lies inside any core of {os.path.basename(a.cores_csv)} -- "
+                  f"is that output from this slide? {m} is kept but may not overlap.")
     if len(ids) > a.max_cores:
         by_org = {}
         for i in ids:
@@ -214,35 +231,78 @@ def add_segger(tx, path, boxes):
     return tx.drop(columns="key"), True
 
 
+class CellposeMasks:
+    """03a's saved label masks (masks/<region>.npz, one per core OR per tile) found by position.
+    Cell ids are <region>-<label>; only cells 03a kept (cells.csv.gz) count."""
+
+    def __init__(self, seg_dir, slide):
+        self.mdir = os.path.join(seg_dir, "cellpose", slide, "masks")
+        cells = read_cells(seg_dir, "cellpose", slide)
+        self.valid = set(cells["cell_id"].astype(str)) if cells is not None else set()
+        self.items = []
+        for f in sorted(glob.glob(os.path.join(self.mdir, "*.npz"))):
+            z = np.load(f)
+            r0, c0 = (int(v) for v in z["offset_rc"])
+            px = float(z["pixel_size"])
+            h, w = z["masks"].shape
+            self.items.append({"file": f, "region": os.path.splitext(os.path.basename(f))[0], "px": px,
+                               "r0": r0, "c0": c0, "x0": c0 * px, "y0": r0 * px,
+                               "x1": (c0 + w) * px, "y1": (r0 + h) * px})
+        self._cache = {}
+
+    def __bool__(self):
+        return bool(self.items) and bool(self.valid)
+
+    def masks(self, it):
+        if it["file"] not in self._cache:
+            if len(self._cache) > 4:
+                self._cache.clear()
+            self._cache[it["file"]] = np.load(it["file"])["masks"]
+        return self._cache[it["file"]]
+
+    def overlapping(self, x0, y0, x1, y1):
+        return [it for it in self.items if it["x0"] < x1 and it["x1"] > x0 and it["y0"] < y1 and it["y1"] > y0]
+
+    def assign(self, x, y):
+        """cellpose cell id for each point ('' = not in a kept cell)."""
+        out = np.full(len(x), "", dtype=object)
+        if len(x) == 0:
+            return out
+        for it in self.overlapping(x.min(), y.min(), x.max(), y.max()):
+            todo = np.where(out == "")[0]
+            if not len(todo):
+                break
+            m = self.masks(it)
+            cc = np.floor(x[todo] / it["px"]).astype(np.int64) - it["c0"]
+            rr = np.floor(y[todo] / it["px"]).astype(np.int64) - it["r0"]
+            inb = (cc >= 0) & (cc < m.shape[1]) & (rr >= 0) & (rr < m.shape[0])
+            lab = np.zeros(len(todo), dtype=np.int64)
+            lab[inb] = m[rr[inb], cc[inb]]
+            ids = np.array([f"{it['region']}-{v}" if v > 0 else "" for v in lab], dtype=object)
+            ok = np.isin(ids, list(self.valid)) if len(self.valid) < 5_000_000 else \
+                np.array([v in self.valid for v in ids])
+            out[todo[ok]] = ids[ok]
+        return out
+
+
 def add_cellpose(tx, seg_dir, slide):
-    """cellpose cell per transcript from 03a's saved masks (masks/<core>.npz); cores without masks -> NaN."""
-    cells = read_cells(seg_dir, "cellpose", slide)
-    mdir = os.path.join(seg_dir, "cellpose", slide, "masks")
+    """cellpose cell per transcript from 03a's saved masks, found by position; no masks -> NaN."""
+    cp = CellposeMasks(seg_dir, slide)
     tx["cellpose"] = pd.Series(np.nan, index=tx.index, dtype=object)
-    if cells is None or not os.path.isdir(mdir):
-        print(f"cellpose: no saved masks in {mdir} (03a --save-masks) -> scan without cellpose; "
+    if not cp:
+        print(f"cellpose: no saved masks in {cp.mdir} (03a --save-masks) -> scan without cellpose; "
               "cellpose is run on the zoom windows instead")
-        return tx, set()
-    valid = set(cells["cell_id"].astype(str))
+        return tx, cp, set()
     have = set()
     for core, idx in tx.groupby("core_id").groups.items():
-        f = os.path.join(mdir, f"{core}.npz")
-        if not os.path.exists(f):
-            continue
-        z = np.load(f)
-        masks, (r0, c0), px = z["masks"], z["offset_rc"], float(z["pixel_size"])
         sub = tx.loc[idx]
-        cc = np.floor(sub["x"].to_numpy() / px).astype(np.int64) - int(c0)
-        rr = np.floor(sub["y"].to_numpy() / px).astype(np.int64) - int(r0)
-        inb = (cc >= 0) & (cc < masks.shape[1]) & (rr >= 0) & (rr < masks.shape[0])
-        lab = np.zeros(len(sub), dtype=np.int64)
-        lab[inb] = masks[rr[inb], cc[inb]]
-        ids = np.array([f"{core}-{v}" if v > 0 else "" for v in lab], dtype=object)
-        ids[~np.isin(ids, list(valid))] = ""
-        tx.loc[idx, "cellpose"] = ids
+        x, y = sub["x"].to_numpy(), sub["y"].to_numpy()
+        if not cp.overlapping(x.min(), y.min(), x.max(), y.max()):
+            continue
+        tx.loc[idx, "cellpose"] = cp.assign(x, y)
         have.add(core)
-    print(f"cellpose: masks for {len(have)} of {tx.core_id.nunique()} scanned cores")
-    return tx, have
+    print(f"cellpose: masks ({len(cp.items)} files) cover {len(have)} of {tx.core_id.nunique()} scanned cores")
+    return tx, cp, have
 
 
 # ---------------------------------------------------------------------------
@@ -487,7 +547,7 @@ def main(argv=None):
     tx, has_segger = add_segger(tx, a.segger_parquet, boxes)
     if not has_segger:
         tx["segger"] = np.nan
-    tx, cp_cores = add_cellpose(tx, a.seg_dir, a.slide_id)
+    tx, cp, cp_cores = add_cellpose(tx, a.seg_dir, a.slide_id)
 
     tiles = scan_tiles(tx, boxes, METHODS, a.tile_um, a.min_tx_tile)
     if tiles.empty:
@@ -531,12 +591,13 @@ def main(argv=None):
         outl["xenium"] = crop_region.read_boundaries(a.xenium_dir, "cell", x0, y0, x1, y1)
         avail.add("xenium")
         # cellpose: 03a masks, else run on the window
-        f = os.path.join(a.seg_dir, "cellpose", a.slide_id, "masks", f"{r.core_id}.npz")
-        if r.core_id in cp_cores and os.path.exists(f):
-            z = np.load(f)
-            m_, (mr0, mc0), mpx = z["masks"], z["offset_rc"], float(z["pixel_size"])
-            outl["cellpose"] = mask_outlines(crop_region, m_, int(mr0), int(mc0), mpx, x0, y0, x1, y1,
-                                             lambda v, c=r.core_id: f"{c}-{v}")
+        if r.core_id in cp_cores:
+            parts = []
+            for it in cp.overlapping(x0, y0, x1, y1):
+                o = mask_outlines(crop_region, cp.masks(it), it["r0"], it["c0"], it["px"], x0, y0, x1, y1,
+                                  lambda v, g=it["region"]: f"{g}-{v}")
+                parts.append(o[o.cell_id.isin(cp.valid)])
+            outl["cellpose"] = pd.concat(parts, ignore_index=True) if parts else None
             avail.add("cellpose"); notes["cellpose"] = "03a result"
         else:
             try:
