@@ -191,44 +191,70 @@ def read_xenium_tx(xenium_dir, boxes, min_qv):
         parts.append(pd.DataFrame({"core_id": boxes.core_id.to_numpy()[hit[idx]], "x": x[idx], "y": y[idx],
                                    "gene": names, "xenium": [str(v) for v in cid]}))
     tx = pd.concat(parts, ignore_index=True)
-    tx = tx[[feature_type(g) == "Gene Expression" for g in tx["gene"]]].reset_index(drop=True)
+    is_gene = {g: feature_type(g) == "Gene Expression" for g in pd.unique(tx["gene"])}
+    tx = tx[tx["gene"].map(is_gene).to_numpy()].reset_index(drop=True)
     tx.loc[tx["xenium"].isin(["UNASSIGNED", "", "-1", "None", "nan"]), "xenium"] = ""
     print(f"{len(tx):,} gene transcripts (qv >= {min_qv}) in {len(boxes)} cores")
     return tx
 
 
-def tx_key(x, y, gene):
-    return pd.Series(np.round(np.asarray(x, float) * 100).astype(np.int64)).astype(str) + "_" + \
-           pd.Series(np.round(np.asarray(y, float) * 100).astype(np.int64)).astype(str) + "_" + pd.Series(gene).astype(str)
+def find_segger_parquet(path):
+    """segger_segmentation.parquet: the path itself, or the newest one in a folder (searched recursively)."""
+    p = os.path.expanduser(path)
+    if os.path.isfile(p):
+        return p
+    hits = sorted(glob.glob(os.path.join(p, "**", "segger_segmentation.parquet"), recursive=True),
+                  key=os.path.getmtime) if os.path.isdir(p) else []
+    if not hits:
+        print(f"segger: no segger_segmentation.parquet in {p} -> segger left out "
+              "(give --segger-parquet if it is elsewhere)")
+        return None
+    if len(hits) > 1:
+        print(f"segger: {len(hits)} segger_segmentation.parquet under {p}, using the newest:")
+    print(f"segger output: {hits[-1]}")
+    return hits[-1]
 
 
 def add_segger(tx, path, boxes):
     """segger cell per transcript (only `filtered` == True assignments, as in 03b)."""
     import pyarrow.dataset as ds
-    s03b = importlib.import_module("03b_segger_to_common")
-    try:
-        path = s03b.find_segger_parquet(path)
-    except FileNotFoundError as e:
-        print(f"segger: {e}\n -> segger left out")
+    path = find_segger_parquet(path)
+    if path is None:
         return tx, False
     d = ds.dataset(path)
     xc, yc = ("x", "y") if "x" in d.schema.names else ("x_location", "y_location")
     f = ((ds.field(xc) >= float(boxes.xmin.min())) & (ds.field(xc) <= float(boxes.xmax.max())) &
          (ds.field(yc) >= float(boxes.ymin.min())) & (ds.field(yc) <= float(boxes.ymax.max())))
-    s = d.to_table(columns=[xc, yc, "feature_name", "segger_cell_id", "filtered"], filter=f).to_pandas()
-    s["feature_name"] = s["feature_name"].map(lambda v: v.decode() if isinstance(v, bytes) else str(v))
-    ok = s["filtered"].fillna(False).astype(bool) & s["segger_cell_id"].notna()
-    s["segger"] = np.where(ok, s["segger_cell_id"].astype(str), "")
-    s["key"] = tx_key(s[xc], s[yc], s["feature_name"]).to_numpy()
-    s = s.drop_duplicates("key")
-    tx["key"] = tx_key(tx["x"], tx["y"], tx["gene"]).to_numpy()
-    tx = tx.merge(s[["key", "segger"]], on="key", how="left")
+    parts = []
+    for batch in d.to_batches(columns=[xc, yc, "feature_name", "segger_cell_id", "filtered"], filter=f,
+                              batch_size=5_000_000):
+        x = batch.column(xc).to_numpy(zero_copy_only=False)
+        y = batch.column(yc).to_numpy(zero_copy_only=False)
+        keep = np.zeros(len(x), dtype=bool)
+        for b in boxes.itertuples(index=False):              # only transcripts inside the scanned cores
+            keep |= (x >= b.xmin) & (x < b.xmax) & (y >= b.ymin) & (y < b.ymax)
+        if not keep.any():
+            continue
+        t = batch.filter(keep).to_pandas()
+        parts.append(pd.DataFrame({
+            "xi": np.round(t[xc].to_numpy(float) * 100).astype(np.int64),
+            "yi": np.round(t[yc].to_numpy(float) * 100).astype(np.int64),
+            "gene": t["feature_name"].map(lambda v: v.decode() if isinstance(v, bytes) else str(v)),
+            "segger": np.where(t["filtered"].fillna(False).astype(bool) & t["segger_cell_id"].notna(),
+                               t["segger_cell_id"].astype(str), "")}))
+    if not parts:
+        print("segger: no segger transcripts inside the scanned cores -> segger left out")
+        return tx, False
+    s = pd.concat(parts, ignore_index=True).drop_duplicates(["xi", "yi", "gene"])
+    tx["xi"] = np.round(tx["x"].to_numpy(float) * 100).astype(np.int64)
+    tx["yi"] = np.round(tx["y"].to_numpy(float) * 100).astype(np.int64)
+    tx = tx.merge(s, on=["xi", "yi", "gene"], how="left")
     matched = tx["segger"].notna().mean()
     tx["segger"] = tx["segger"].fillna("")
     print(f"segger: {matched:.1%} of the transcripts matched to segger's output")
     if matched < 0.5:
         print("  WARNING: few transcripts matched -- is the segger output from this slide / Xenium run?")
-    return tx.drop(columns="key"), True
+    return tx.drop(columns=["xi", "yi"]), True
 
 
 class CellposeMasks:
