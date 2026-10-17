@@ -37,8 +37,8 @@ Outputs (in --out-dir, default <project>/figures/03f):
   03f_<slide>_disagreement_by_organ.png
 
 Example:
-  python 03f_segmentation_disagreement.py --slide-id TMA_ORGAN \\
-      --xenium-dir /path/output-XETG... --project-dir /work_ikmb/.../work
+  python 03f_segmentation_disagreement.py --slide-id TMA_ORGAN --project-dir /work_ikmb/.../work
+  (Xenium outs from config/slides.csv; or pass --xenium-dir /path/output-XETG...)
 """
 
 import argparse
@@ -69,7 +69,8 @@ CELL_PALETTE = ["#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231", "#911eb4"
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--slide-id", required=True)
-    p.add_argument("--xenium-dir", required=True)
+    p.add_argument("--xenium-dir", default=None,
+                   help="Xenium outs of the slide (default: xenium_dir of the slide in config/slides.csv)")
     p.add_argument("--project-dir", default=os.environ.get("EXP1_PROJECT_DIR"),
                    help="project folder (default: $EXP1_PROJECT_DIR); the paths below default into it")
     p.add_argument("--cores-csv", help="default <project>/tables/02_cores_all.csv")
@@ -101,6 +102,16 @@ def parse_args(argv=None):
     a.out_dir = a.out_dir or os.path.join(a.project_dir, "figures", "03f")
     a.segger_parquet = a.segger_parquet or os.path.join(a.seg_dir, "segger_raw", a.slide_id)
     a.tma_map = a.tma_map or os.path.join(HERE, "config", "tma_map.csv")
+    if not a.xenium_dir:
+        sl = pd.read_csv(os.path.join(HERE, "config", "slides.csv"))
+        row = sl[sl["slide_id"] == a.slide_id]
+        if row.empty:
+            p.error(f"{a.slide_id} is not in config/slides.csv -- give --xenium-dir")
+        d = str(row["xenium_dir"].iloc[0])
+        a.xenium_dir = d if os.path.isabs(d) else os.path.join(a.project_dir or "", d)
+        print(f"Xenium outs (config/slides.csv): {a.xenium_dir}")
+    if not os.path.isdir(a.xenium_dir):
+        p.error(f"Xenium folder not found: {a.xenium_dir}")
     return a
 
 
@@ -297,6 +308,8 @@ def scan_tiles(tx, boxes, methods, tile, min_tx):
 def choose(tiles, n, per_core, ascending, min_dist):
     """Top tiles by score, at most per_core per core and min_dist apart within a core."""
     out, per = [], {}
+    if n <= 0:
+        return out
     for r in tiles.sort_values("score", ascending=ascending).itertuples(index=False):
         if per.get(r.core_id, 0) >= per_core:
             continue
