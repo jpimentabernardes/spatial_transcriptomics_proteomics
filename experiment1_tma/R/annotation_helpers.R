@@ -97,6 +97,11 @@ annotate_group <- function(obj, group, sigs, res, comp_by, prefix = "04", harmon
                      top_markers = unname(top_txt[cl]), top_organs = unname(top_organs(meta, col)[cl]),
                      suggestion = sug$suggestion, margin = sug$margin)
   summ$top_markers[is.na(summ$top_markers)] <- "(no markers)"
+  if ("is_tumour" %in% colnames(meta) && length(unique(meta$is_tumour)) > 1) {
+    ## which clusters are shared by normal and tumour cores, which are tumour-only
+    pt <- tapply(meta$is_tumour, as.character(meta[[col]]), mean)
+    summ$pct_cells_from_tumour_cores <- round(100 * as.numeric(pt[cl]), 1)
+  }
   lab <- labels_from_template(summ, group, prefix)
 
   ## figures: dot plot (signature + top markers), UMAP, organ composition of clusters

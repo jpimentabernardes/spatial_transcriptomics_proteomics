@@ -314,6 +314,16 @@ merge_slides <- function(objs) {
   obj
 }
 
+## Tumour status is a property of the SLIDE (TMA_TUMOR = tumours, TMA_ORGAN = normal):
+## slides.csv tma_type containing "tum" (e.g. multi_tumor), else slide_id containing "tum".
+## Per-core tissue_type is NOT used: a blank or differently spelled entry on the organ
+## TMA would otherwise turn normal cores into "tumour".
+tumour_slides <- function(slides = read_slides()) {
+  if ("tma_type" %in% colnames(slides) && any(grepl("tum", tolower(slides$tma_type))))
+    return(slides$slide_id[grepl("tum", tolower(slides$tma_type))])
+  slides$slide_id[grepl("tum", tolower(slides$slide_id))]
+}
+
 ## -----------------------------------------------------------------------
 ## TMA dearraying
 ## -----------------------------------------------------------------------

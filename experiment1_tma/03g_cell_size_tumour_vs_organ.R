@@ -52,8 +52,7 @@ fam <- read_config_csv(ANNOT_FAMILIES_CSV, stringsAsFactors = FALSE, fileEncodin
 core_info <- tma_map[, intersect(c("core_id", "slide_id", "organ", "tissue_type"), colnames(tma_map))]
 core_info$site <- if ("site" %in% colnames(fam)) fam$site[match(key(core_info$organ), key(fam$organ))] else NA
 core_info$site[!is.na(core_info$site) & !nzchar(core_info$site)] <- NA
-tt <- tolower(trimws(as.character(core_info$tissue_type)))
-core_info$tumour <- ifelse(is.na(tt) | !nzchar(tt), grepl("tum", tolower(core_info$slide_id)), tt != "normal")
+core_info$tumour <- core_info$slide_id %in% tumour_slides(slides)        # slide level, see R/helpers.R
 
 ## -----------------------------------------------------------------------
 ## 1. per-cell table, one method x slide at a time (whole objects are large)

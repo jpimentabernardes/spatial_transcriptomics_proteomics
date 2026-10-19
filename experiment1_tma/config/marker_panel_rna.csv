@@ -43,7 +43,7 @@ level,parent,cell_type,markers,use_for_mecr
 2,GI_glandular,Gastric_foveolar,TFF1;CTSE;S100P,
 2,GI_glandular,Enteroendocrine,CHGA;CHGB;INSM1;NEUROD1;SCGN;PAX4;GCG;INSL5,
 2,GI_glandular,Tuft,TRPM5;AVIL;SH2D6;SH2D7;HPGDS;LRMP;BMX,
-2,GI_glandular,Tumour_stress_signature,LCN2;DUOX2;PI3;CEACAM6;DPYSL3;EGFR;PROX1,
+2,GI_glandular,Stress_inflamed_epithelium,LCN2;DUOX2;PI3;CEACAM6;DPYSL3;EGFR;PROX1,
 2,Hepato_pancreato_biliary,Hepatocyte,SERPINA1;RBP4;TTR;APOE;CES1;ADH1C;AKR1C3;UGT2B17,
 2,Hepato_pancreato_biliary,Cholangiocyte_ductal,KRT7;SOX9;CFTR;WFDC2;SLPI,
 2,Hepato_pancreato_biliary,Acinar,REG1A;SERPINA1,
