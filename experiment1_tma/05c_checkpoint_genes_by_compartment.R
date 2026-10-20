@@ -18,7 +18,10 @@
 ## set 2 for a stricter call -- the counts are in the table, so you can re-threshold.
 ##
 ## INPUT : xenium_<seg>_annotated.rds (04, ideally after 04c), config/compartments.csv
-## OUTPUT: data/export/05c_checkpoint_cells_<slide>.csv.gz    one row per cell (in a core):
+## OUTPUT: data/export/05c_punch_file_<NTA|MTA>_<seg>.csv     ONE ROW PER CORE (patient): per marker
+##           (PD1, PDL1, CD56, CD8 = CD8A + CD8B, CD8A, CD8B) transcripts and transcripts per cell,
+##           for all cells and per compartment (EpiTumour, MacDC, T) -- section 3b
+##         data/export/05c_checkpoint_cells_<slide>.csv.gz    one row per cell (in a core):
 ##           cell, slide_id, is_tumour, core_id, organ, site, x_um, y_um, lineage, label,
 ##           compartment, nCount_Xenium, <gene> (counts), <gene>_norm (log-normalised)
 ##         tables/05c_checkpoint_by_core_compartment.csv   per core x compartment:
@@ -97,8 +100,9 @@ nrm <- if ("data" %in% Layers(xen[["Xenium"]])) GetAssayData(xen, assay = "Xeniu
   log1p(sweep(cnt, 2, pmax(m$nCount_Xenium, 1), "/") * stats::median(m$nCount_Xenium))
 cnt <- as.matrix(Matrix::t(cnt)); colnames(cnt) <- names(genes)
 nrm <- round(as.matrix(Matrix::t(nrm)), 4); colnames(nrm) <- paste0(names(genes), "_norm")
+if (!"patient_id" %in% colnames(m)) m$patient_id <- NA
 cells <- data.frame(cell = rownames(m), slide_id = m$slide_id, is_tumour = m$is_tumour, core_id = m$core_id,
-                    organ = m$organ, site = m$site, x_um = round(m$x_um, 2), y_um = round(m$y_um, 2),
+                    patient_id = m$patient_id, organ = m$organ, site = m$site, x_um = round(m$x_um, 2), y_um = round(m$y_um, 2),
                     lineage = m$lineage, label = m$label, compartment = m$compartment,
                     nCount_Xenium = m$nCount_Xenium, cnt, nrm, check.names = FALSE)[in_core, ]
 for (sid in unique(cells$slide_id)) {
@@ -134,6 +138,66 @@ by_core <- summ_by(c("slide_id", "is_tumour", "site", "organ", "core_id", "compa
 save_table(by_core, "05c_checkpoint_by_core_compartment")
 by_site <- summ_by(c("slide_id", "is_tumour", "site", "compartment"))
 save_table(by_site, "05c_checkpoint_by_site_compartment")
+
+## -----------------------------------------------------------------------
+## 3b. "Punch file" for the comparison with IHC / RNA-FISH: ONE ROW PER CORE.
+##     For each marker (PD1 = PDCD1, PDL1 = CD274, CD56 = NCAM1, CD8 = CD8A + CD8B,
+##     and CD8A / CD8B separately):
+##       <M>_transcripts            transcripts of the marker in all cells of the core
+##       <M>_per_cell               ... divided by the number of cells in the core
+##       <M>_transcripts_<comp>     transcripts in the cells of one compartment
+##       <M>_per_cell_<comp>        ... divided by the number of cells of that compartment
+##     compartments: EpiTumour = Epithelial/Tumour, MacDC = Macrophage/DC, T = T cells
+##     (from the cell type annotation, see config/compartments.csv), plus n_cells_<comp>.
+##     Cells = QC-passed cells whose centre lies in the core; transcripts that no cell
+##     was assigned to are not counted.
+## -----------------------------------------------------------------------
+PUNCH_COMPARTMENTS <- get0("PUNCH_COMPARTMENTS", ifnotfound = c(EpiTumour = "Epithelial/Tumour",
+                                                              MacDC = "Macrophage/DC", T = "T cells"))
+pm <- cells[, gene_names, drop = FALSE]
+short <- c(PDCD1 = "PD1", CD274 = "PDL1", CD56 = "CD56", CD8A = "CD8A", CD8B = "CD8B")[gene_names]
+names(pm) <- ifelse(is.na(short), gene_names, short)
+if (all(c("CD8A", "CD8B") %in% names(pm))) pm <- cbind(pm[, setdiff(names(pm), c("CD8A", "CD8B")), drop = FALSE],
+                                                    CD8 = pm$CD8A + pm$CD8B, pm[, c("CD8A", "CD8B")])
+pm <- as.matrix(pm)
+key <- paste(cells$slide_id, cells$core_id, sep = "\r")
+core_tab <- cells[!duplicated(key), c("slide_id", "is_tumour", "core_id", "patient_id", "organ", "site")]
+core_tab$tma <- ifelse(core_tab$is_tumour, "MTA", "NTA")
+rownames(core_tab) <- key[!duplicated(key)]
+add_block <- function(tab, sel, suffix) {
+  n <- as.numeric(table(factor(key[sel], levels = rownames(tab)))[rownames(tab)])
+  s <- matrix(0, nrow(tab), ncol(pm), dimnames = list(rownames(tab), colnames(pm)))
+  if (any(sel)) {                                  # rowsum() drops cores without cells of the compartment
+    r <- rowsum(pm[sel, , drop = FALSE], key[sel])
+    s[rownames(r), ] <- r
+  }
+  tab[[paste0("n_cells", suffix)]] <- as.integer(n)
+  if (suffix == "") tab$total_transcripts <- as.numeric(rowsum(cells$nCount_Xenium, factor(key, levels = rownames(tab)))[rownames(tab), 1])
+  for (mk in colnames(pm)) {
+    tab[[paste0(mk, "_transcripts", suffix)]] <- s[, mk]
+    tab[[paste0(mk, "_per_cell", suffix)]] <- round(ifelse(n > 0, s[, mk] / n, NA), 5)
+  }
+  tab
+}
+punch <- add_block(core_tab, rep(TRUE, nrow(cells)), "")
+for (cn in names(PUNCH_COMPARTMENTS)) punch <- add_block(punch, cells$compartment %in% PUNCH_COMPARTMENTS[[cn]], paste0("_", cn))
+## matching keys to the pathology grids, where 02 kept them
+cores_file <- file.path(TABLES_DIR, "02_cores_all.csv")
+if (file.exists(cores_file)) {
+  ca <- utils::read.csv(cores_file, stringsAsFactors = FALSE)
+  for (col in intersect(c("core_name", "cellscape_core"), colnames(ca)))
+    punch[[col]] <- ca[[col]][match(paste(punch$slide_id, punch$core_id), paste(ca$slide_id, ca$core_id))]
+}
+front <- intersect(c("tma", "slide_id", "core_id", "core_name", "cellscape_core", "patient_id", "organ", "site"),
+                   colnames(punch))
+punch <- punch[order(punch$slide_id, punch$core_id), c(front, setdiff(colnames(punch), c(front, "is_tumour")))]
+rownames(punch) <- NULL
+save_table(punch, "05c_punch_file_per_core")
+for (t in unique(punch$tma)) {
+  f <- file.path(EXPORT_DIR, sprintf("05c_punch_file_%s_%s.csv", t, SEGMENTATION))
+  utils::write.csv(punch[punch$tma == t, ], f, row.names = FALSE)
+  message("Punch file (", t, ", ", sum(punch$tma == t), " cores) -> ", f)
+}
 
 ## -----------------------------------------------------------------------
 ## 4. figures
