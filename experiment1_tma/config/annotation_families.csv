@@ -1,19 +1,19 @@
 organ,family,group,site
-Tonsil,none,Haematolymphoid,
-"Skin, body",Squamous,Skin,
-"Skin, genital",Squamous,Skin,
-"Skin, head, normal",Squamous,Skin,
-Cerebellum,CNS,CNS,
-Cerebrum,CNS,CNS,
-Eye,none,Head & Neck,
-"Lip, oral mucosa",Squamous,Head & Neck,
-"Salivary gland, parotid",Glandular_head_neck,Head & Neck,
-"Salivary gland, submandibularis",Glandular_head_neck,Head & Neck,
+Tonsil,none,Haematolymphoid,Tonsil
+"Skin, body",Squamous,Skin,Skin
+"Skin, genital",Squamous,Skin,Skin
+"Skin, head, normal",Squamous,Skin,Skin
+Cerebellum,CNS,CNS,Brain
+Cerebrum,CNS,CNS,Brain
+Eye,none,Head & Neck,Eye
+"Lip, oral mucosa",Squamous,Head & Neck,Oral_cavity
+"Salivary gland, parotid",Glandular_head_neck,Head & Neck,Salivary_gland
+"Salivary gland, submandibularis",Glandular_head_neck,Head & Neck,Salivary_gland
 "Striated muscle, tongue",none,Head & Neck,
-"Bronchus, glands",Thoracic,Thoracic tumors,
-"Bronchus, mucosa",Thoracic,Thoracic tumors,
-Lung,Thoracic,Thoracic tumors,
-Thymus,Thoracic,Thoracic tumors,
+"Bronchus, glands",Thoracic,Thoracic tumors,Lung
+"Bronchus, mucosa",Thoracic,Thoracic tumors,Lung
+Lung,Thoracic,Thoracic tumors,Lung
+Thymus,Thoracic,Thoracic tumors,Thymus
 "Esophagus, squamous epithelium",Squamous,Gastro,Oesophagus
 "Stomach, corpus",GI_glandular,Gastro,Stomach
 "Duodenum, mucosa",GI_glandular,Gastro,Duodenum
@@ -31,35 +31,35 @@ Gallbladder,Hepato_pancreato_biliary,Gastro,Gallbladder_bile_ducts
 Liver,Hepato_pancreato_biliary,Gastro,Liver
 Pancreas,Hepato_pancreato_biliary,Gastro,Pancreas
 Spleen,none,Gastro,
-Mamma lactans,Breast,Breast,
-"Mamma, resting",Breast,Breast,
-Ektocervix,Squamous,Lower Gyn,
-Endocervix,Gynaecological,Lower Gyn,
-Endometrium,Gynaecological,Lower Gyn,
-"Fallopian tube, mucosa",Gynaecological,Lower Gyn,
-"Placenta, early",Gynaecological,Lower Gyn,
-"Placenta, mature",Gynaecological,Lower Gyn,
-Amnion,Gynaecological,Lower Gyn,
-"Ovary, corpus albicans",Gynaecological,Lower Gyn,
-"Ovary, corpus luteum",Gynaecological,Lower Gyn,
-"Ovary, follicular cyst",Gynaecological,Lower Gyn,
-"Ovary, stroma",Gynaecological,Lower Gyn,
+Mamma lactans,Breast,Breast,Breast
+"Mamma, resting",Breast,Breast,Breast
+Ektocervix,Squamous,Lower Gyn,Cervix
+Endocervix,Gynaecological,Lower Gyn,Cervix
+Endometrium,Gynaecological,Lower Gyn,Endometrium
+"Fallopian tube, mucosa",Gynaecological,Lower Gyn,Fallopian_tube
+"Placenta, early",Gynaecological,Lower Gyn,Placenta
+"Placenta, mature",Gynaecological,Lower Gyn,Placenta
+Amnion,Gynaecological,Lower Gyn,Placenta
+"Ovary, corpus albicans",Gynaecological,Lower Gyn,Ovary
+"Ovary, corpus luteum",Gynaecological,Lower Gyn,Ovary
+"Ovary, follicular cyst",Gynaecological,Lower Gyn,Ovary
+"Ovary, stroma",Gynaecological,Lower Gyn,Ovary
 "Uterus, myometrium",none,Lower Gyn,
-"Kidney, cortex",Urogenital,Uro,
-"Kidney, medulla",Urogenital,Uro,
+"Kidney, cortex",Urogenital,Uro,Kidney
+"Kidney, medulla",Urogenital,Uro,Kidney
 "Urinary bladder, muscular wall",none,Uro,
-Ureter,Urogenital,Uro,
-Urothelium,Urogenital,Uro,
-Ductus deferens,Urogenital,Uro,
-Ductus deferens / Samenblase,Urogenital,Uro,
-Epididymis,Urogenital,Uro,
-"Penis, corpus spongiosum / cavernosum",Urogenital,Uro,
-Prostate,Urogenital,Uro,
-Seminal vesicle,Urogenital,Uro,
-Testis,Urogenital,Uro,
-Adrenal gland,Endocrine,Endocrine organs,
-Parathyroid,Endocrine,Endocrine organs,
-Thyroid,Endocrine,Endocrine organs,
+Ureter,Urogenital,Uro,Urothelium
+Urothelium,Urogenital,Uro,Urothelium
+Ductus deferens,Urogenital,Uro,Seminal_tract
+Ductus deferens / Samenblase,Urogenital,Uro,Seminal_tract
+Epididymis,Urogenital,Uro,Epididymis
+"Penis, corpus spongiosum / cavernosum",Urogenital,Uro,Penis
+Prostate,Urogenital,Uro,Prostate
+Seminal vesicle,Urogenital,Uro,Seminal_tract
+Testis,Urogenital,Uro,Testis
+Adrenal gland,Endocrine,Endocrine organs,Adrenal
+Parathyroid,Endocrine,Endocrine organs,Parathyroid
+Thyroid,Endocrine,Endocrine organs,Thyroid
 Cartilage,none,Soft tissue & bone,
 Heart muscle,none,Soft tissue & bone,
 Striated muscle,none,Soft tissue & bone,
@@ -68,32 +68,32 @@ Striated muscle,none,Soft tissue & bone,
 Vessel,none,Soft tissue & bone,
 "Vessels, elastic artery",none,Soft tissue & bone,
 Lymph node,none,Haematolymphoid,
-"Paget disease, extramammary skin",Skin_other,Skin,
-Merkel cell carcinoma,Neuroendocrine,Skin,
-"Melanoma, Nodular",Skin_other,Skin,
-Astrocytoma,CNS,CNS,
-Glioblastoma,CNS,CNS,
-Medulloblastoma,CNS,CNS,
-Squamous cell carcinoma of the larynx,Squamous,Head & Neck,
-"Squamous cell carcinoma, tonsilla, HPV associated",Squamous,Head & Neck,
-Adenocarcinoma of the buccal mucosa,Glandular_head_neck,Head & Neck,
-Oral squamous cell carcinoma (floor of the mouth),Squamous,Head & Neck,
-Squamous cell carcinoma of oral cavity,Squamous,Head & Neck,
-Squamous cell carcinoma of the lower lip,Squamous,Head & Neck,
-"Squamous cell carcinoma, nasal cavity",Squamous,Head & Neck,
-Salivary duct carcinoma,Glandular_head_neck,Head & Neck,
-Adenoid Cystic Carcinoma of the Glandula parotis,Glandular_head_neck,Head & Neck,
-Adenoid Cystic Carcinoma of the Glandula submandibularis,Glandular_head_neck,Head & Neck,
-Small cell lung carcinoma,Neuroendocrine,Thoracic tumors,
-"Mesothelioma, epithelioid",Thoracic,Thoracic tumors,
-"Non-small-cell lung cancer, adeno",Thoracic,Thoracic tumors,
-Squamous cell carcinoma of the lung,Squamous,Thoracic tumors,
-"Lung, neuroendocrine tumor (NET)",Neuroendocrine,Thoracic tumors,
-Type A thymoma,Thoracic,Thoracic tumors,
-Type AB thymoma,Thoracic,Thoracic tumors,
-Type B1 thymoma,Thoracic,Thoracic tumors,
-Type B2/ B3Thymoma ,Thoracic,Thoracic tumors,
-Squamous cell carcinoma of the thymus,Squamous,Thoracic tumors,
+"Paget disease, extramammary skin",Skin_other,Skin,Skin
+Merkel cell carcinoma,Neuroendocrine,Skin,Skin
+"Melanoma, Nodular",Skin_other,Skin,Skin
+Astrocytoma,CNS,CNS,Brain
+Glioblastoma,CNS,CNS,Brain
+Medulloblastoma,CNS,CNS,Brain
+Squamous cell carcinoma of the larynx,Squamous,Head & Neck,Larynx
+"Squamous cell carcinoma, tonsilla, HPV associated",Squamous,Head & Neck,Tonsil
+Adenocarcinoma of the buccal mucosa,Glandular_head_neck,Head & Neck,Oral_cavity
+Oral squamous cell carcinoma (floor of the mouth),Squamous,Head & Neck,Oral_cavity
+Squamous cell carcinoma of oral cavity,Squamous,Head & Neck,Oral_cavity
+Squamous cell carcinoma of the lower lip,Squamous,Head & Neck,Oral_cavity
+"Squamous cell carcinoma, nasal cavity",Squamous,Head & Neck,Nasal_cavity
+Salivary duct carcinoma,Glandular_head_neck,Head & Neck,Salivary_gland
+Adenoid Cystic Carcinoma of the Glandula parotis,Glandular_head_neck,Head & Neck,Salivary_gland
+Adenoid Cystic Carcinoma of the Glandula submandibularis,Glandular_head_neck,Head & Neck,Salivary_gland
+Small cell lung carcinoma,Neuroendocrine,Thoracic tumors,Lung
+"Mesothelioma, epithelioid",Thoracic,Thoracic tumors,Pleura
+"Non-small-cell lung cancer, adeno",Thoracic,Thoracic tumors,Lung
+Squamous cell carcinoma of the lung,Squamous,Thoracic tumors,Lung
+"Lung, neuroendocrine tumor (NET)",Neuroendocrine,Thoracic tumors,Lung
+Type A thymoma,Thoracic,Thoracic tumors,Thymus
+Type AB thymoma,Thoracic,Thoracic tumors,Thymus
+Type B1 thymoma,Thoracic,Thoracic tumors,Thymus
+Type B2/ B3Thymoma ,Thoracic,Thoracic tumors,Thymus
+Squamous cell carcinoma of the thymus,Squamous,Thoracic tumors,Thymus
 Adenocarcinoma of the esophagus,GI_glandular,Gastro,Oesophagus
 Squamous cell carcinoma of the esophagus,Squamous,Gastro,Oesophagus
 "Gastric carcinoma, MSI",GI_glandular,Gastro,Stomach
@@ -113,5 +113,5 @@ Adenocarcinoma of the colon,GI_glandular,Gastro,Colon
 "Colorectal, neuroendocrine carcinoma (NEC)",Neuroendocrine,Gastro,Colon
 Adenocarcinoma of the sigmoid,GI_glandular,Gastro,Colon
 Squamous cell carcinoma of the anal canal,Squamous,Gastro,Anal_canal
-"Breast carcinoma, NST, G1",Breast,Breast,
-"Breast carcinoma, NST, G2",Breast,Breast,
+"Breast carcinoma, NST, G1",Breast,Breast,Breast
+"Breast carcinoma, NST, G2",Breast,Breast,Breast

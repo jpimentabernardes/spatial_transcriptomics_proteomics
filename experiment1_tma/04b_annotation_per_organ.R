@@ -9,10 +9,16 @@
 ##                clustered together -> which tumour clusters resemble which
 ##                normal cell types, and which are tumour-only
 ## Sites come from the `site` column of config/annotation_families.csv, which
-## pairs each organ with its tumours (e.g. Colon = colon transversum + sigmoid
-## mucosa + adenocarcinoma of the colon / sigmoid + colorectal NEC). Edit that
-## column to split or merge sites (e.g. Colon_sigmoid vs Colon_transversum);
-## sites left empty are not run. ORGAN_SITES in config.R picks a subset.
+## pairs each organ with its tumours, for all organ systems, e.g.
+##   Colon  = colon transversum + sigmoid mucosa + colon / sigmoid adenocarcinoma + colorectal NEC
+##   Lung   = bronchus + lung + NSCLC adeno, lung SCC, SCLC, lung NET
+##   Skin   = skin + extramammary Paget, nodular melanoma, Merkel cell carcinoma
+##   Brain, Oral_cavity, Salivary_gland, Tonsil, Thymus, Breast, Stomach, Liver, Pancreas, ...
+## Normal only (no matched tumour on the TMA): cervix, endometrium, ovary, placenta,
+## kidney, prostate, testis, thyroid, ...; tumour only: Larynx, Nasal_cavity, Pleura.
+## Edit the column to split or merge sites (e.g. Colon_sigmoid vs Colon_transversum);
+## organs left empty (muscle, fat, vessels, spleen, lymph node: no epithelium) are not run.
+## ORGAN_SITES in config.R picks a subset, e.g. ORGAN_SITES <- c("Colon", "Lung").
 ##
 ## Immune and stromal cells keep their 04 labels (one consistent set across all
 ## organs, so organs stay comparable); set ORGAN_LINEAGES to sub-cluster them
@@ -146,6 +152,10 @@ for (mode in MODES) {
     g <- paste0(if (mode == "normal") "Organ_" else "OrganTumour_", s)
     if (mode != "normal" && !any(xen$is_tumour[sel])) {
       message(g, ": no tumour cores for this site -- skipped (same as Organ_", s, ")")
+      next
+    }
+    if (mode == "normal" && !length(cells) && any(xen$is_tumour[in_lin & xen$site %in% s])) {
+      message(g, ": tumour cores only (no normal tissue of this site on the TMA) -- see OrganTumour_", s)
       next
     }
     if (length(cells) < MIN_CELLS_ORGAN) {
