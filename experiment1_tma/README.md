@@ -54,7 +54,9 @@ H&E (Xenium slide) ─► 07 register H&E → Xenium (--mode he) ─► QuPath r
 | 04 | `04_annotation_probe_based.R` | R | Cell type calling from the transcriptomics: clustering (`RES_CLUSTERS`), FindAllMarkers, dot plot of canonical markers (`CANONICAL_MARKERS`) + top markers per cluster, each cluster in the tissue. You name the clusters in `CLUSTER_TO_CELLTYPE` / `CLUSTER_TO_LINEAGE` (config.R), starting from the template 04 writes to `annotation/`. |
 | 04 (TMA) | `04_annotation_hierarchical.R` | R | Multi-organ TMAs: L1 lineage on all cells of both TMAs, then immune (all organs together), stroma (all organs together) and epithelial / neuroendocrine cells per organ family (`config/annotation_families.csv`, normal + tumour together). Per group: clustering, markers, dot plot, UMAP, organ composition and a label template `annotation/04_<seg>_<group>.csv` (pre-filled suggestions; edit `label`, re-run). |
 | 04b | `04b_annotation_per_organ.R` | R | After 04: epithelial / neuroendocrine cell types per organ (`site` in `config/annotation_families.csv`: colon, rectum, ileum, stomach, ...), once normal only and once normal + the tumours of that organ (no Harmony, so tumour vs normal is kept). Templates `annotation/04b_<seg>_Organ_<site>.csv` / `OrganTumour_<site>.csv`; columns `cell_type_organ`, `cell_type_organ_tumour`. |
+| 04c | `04c_annotation_per_organ_all_lineages.R` | R | Per organ, ALL lineages: separate clusterings for epithelium/NE (same groups + label files as 04b), immune and stroma (mesenchymal + endothelial), normal only and normal + matched tumours. One organ-level label per cell in `cell_type_organ_all` (04 label where an organ group was too small). |
 | 05 | `05_tma_first_insights.R` | R | Aim 1 and Aim 2 analyses (see table above) plus cellular niches. |
+| 05c | `05c_checkpoint_genes_by_compartment.R` | R | PDCD1, CD274, NCAM1 (CD56), CD8A, CD8B per cell with coordinates, core, organ and compartment (Epithelial/Tumour, T cells, Macrophage/DC, NK/ILC, ...; rules in `config/compartments.csv`) -> `data/export/05c_checkpoint_cells_<seg>_<slide>.csv.gz`, per-core summaries and figures for TMA_ORGAN and TMA_TUMOR. |
 | 07 | `07_register_modalities.py` | Py | With `--mode he`: transform from the H&E (Xenium slide) to Xenium µm, used by 09. (Its `--mode cellscape` is parked with the CellScape steps.) |
 | 09 | `09_he_regions.R` | R | Pathology regions drawn on H&E (QuPath GeoJSON) → transformed → assigned to cells → composition and immune targets per region. |
 
@@ -108,6 +110,8 @@ H&E (Xenium slide) ─► 07 register H&E → Xenium (--mode he) ─► QuPath r
    Rscript 04_annotation_probe_based.R                                # single-tissue data (e.g. Swiss rolls)
    Rscript 04_annotation_hierarchical.R                               # multi-organ TMAs: edit annotation/04_<seg>_*.csv, re-run
    Rscript 04b_annotation_per_organ.R                                 # per organ, with and without tumours
+   Rscript 04c_annotation_per_organ_all_lineages.R                    # per organ: epithelium + immune + stroma
+   Rscript 05c_checkpoint_genes_by_compartment.R                      # PD-1 / PD-L1 / CD56 / CD8 table + figures
    Rscript 05_tma_first_insights.R
    python 07_register_modalities.py --mode he --project-dir $EXP1_PROJECT_DIR --slide-id <slide> \
        --xenium-dir <xenium outs> --moving-image <xenium-slide H&E> --refine image

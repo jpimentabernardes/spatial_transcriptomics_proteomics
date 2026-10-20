@@ -1,0 +1,10 @@
+lineage,pattern,compartment,notes
+Epithelial,.,Epithelial/Tumour,all epithelial cells (tumour cells on TMA_TUMOR; see column is_tumour)
+Neural_NE,.,Epithelial/Tumour,neuroendocrine epithelium and NE tumours
+Immune,Treg|Tfh|CD4|CD8|gd_T|Th17|Naive|(^|_)T(_|$)|T_cell,T cells,checked first: T-cell labels (Th17_ILC3 counts as T)
+Immune,Macrophage|Monocyte|DC|Myeloid|Kupffer|Microglia,Macrophage/DC,macrophages / monocytes / all dendritic cells (cDC1 mregDC pDC)
+Immune,(^|_)NK(_|$)|ILC,NK/ILC,CD56 (NCAM1) mainly here
+Immune,B_cell|Plasma,B/Plasma,
+Immune,.,Other immune,neutrophils / mast cells / eosinophils / proliferating / unlabelled immune
+Mesenchymal,.,Stroma,
+Endothelial,.,Stroma,

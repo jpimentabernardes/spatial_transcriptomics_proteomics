@@ -132,3 +132,144 @@ annotate_group <- function(obj, group, sigs, res, comp_by, prefix = "04", harmon
   list(labels = stats::setNames(unname(lab[as.character(obj[[col, drop = TRUE]])]), colnames(obj)),
        umap = Embeddings(obj, "umap"))
 }
+
+## =============================================================================
+## Per-organ ("site") annotation, shared by 04b (epithelium) and 04c (all lineages)
+## =============================================================================
+
+## site (config/annotation_families.csv) and tumour status (slide level) per cell
+add_site_and_tumour <- function(xen, families_csv) {
+  key <- function(x) tolower(trimws(gsub("[^[:print:]]", "", as.character(x))))
+  fam <- read_config_csv(families_csv, stringsAsFactors = FALSE, fileEncoding = "latin1")
+  if (!"site" %in% colnames(fam)) stop(basename(families_csv), " has no `site` column -- update config/.")
+  site <- fam$site[match(key(xen$organ), key(fam$organ))]
+  site[!is.na(site) & !nzchar(trimws(site))] <- NA
+  xen$site <- site
+  tum <- tumour_slides()
+  xen$is_tumour <- xen$slide_id %in% tum
+  message("Tumour slide(s): ", paste(tum, collapse = ", "), "  (from config/slides.csv)")
+  print(table(slide = xen$slide_id, tumour = xen$is_tumour))
+  xen
+}
+
+## sites to run: every site in the csv, or ORGAN_SITES
+pick_sites <- function(xen, organ_sites = NULL) {
+  sites <- sort(unique(stats::na.omit(xen$site)))
+  if (!is.null(organ_sites)) {
+    bad <- setdiff(organ_sites, sites)
+    if (length(bad)) message("ORGAN_SITES not found in the data: ", paste(bad, collapse = ", "))
+    sites <- intersect(sites, organ_sites)
+  }
+  if (!length(sites)) stop("No sites to run -- fill the `site` column of annotation_families.csv")
+  sites
+}
+
+## UMAP of one group coloured by core (+ by normal / tumour and by label): do clusters
+## follow cell types (mixed cores) or single cores / patients (batch, or a tumour)?
+plot_umap_by_core <- function(emb, meta, lab, g, prefix = "04b", pal_lineage = "Epithelial", max_cells = 2e5) {
+  d <- data.frame(emb[, 1:2], core = meta[rownames(emb), "core_id"], organ = meta[rownames(emb), "organ"],
+                  tissue = ifelse(meta[rownames(emb), "is_tumour"], "tumour", "normal"),
+                  label = unname(lab[rownames(emb)]))
+  colnames(d)[1:2] <- c("u1", "u2")
+  d <- d[!is.na(d$core), ]
+  if (!nrow(d)) return(invisible(NULL))
+  if (nrow(d) > max_cells) d <- d[sample(nrow(d), max_cells), ]
+  d <- d[sample(nrow(d)), ]                                   # no core drawn on top of all others
+  d$core_lab <- paste0(d$core, " (", d$organ, ")")
+  n_core <- length(unique(d$core_lab))
+  pal <- stats::setNames(grDevices::hcl(h = seq(15, 375, length.out = n_core + 1)[seq_len(n_core)],
+                                        c = rep(c(85, 55), length.out = n_core),
+                                        l = rep(c(55, 72, 42), length.out = n_core)),
+                         sort(unique(d$core_lab)))
+  pt <- if (nrow(d) > 1e5) 0.25 else if (nrow(d) > 2e4) 0.5 else if (nrow(d) > 2000) 1 else 2
+  base <- list(theme_void(base_size = 12), coord_fixed(), theme(plot.title = element_text(size = 13)))
+  p_core <- ggplot(d, aes(u1, u2, colour = core_lab)) + geom_point(size = pt, stroke = 0) +
+    scale_colour_manual(values = pal, name = "core (organ)") + base +
+    guides(colour = guide_legend(override.aes = list(size = 3), ncol = if (n_core > 25) 2 else 1)) +
+    ggtitle(paste0(g, ": coloured by core (", n_core, " cores)"))
+  plots <- list(p_core)
+  if (length(unique(d$tissue)) > 1)
+    plots <- c(plots, list(ggplot(d, aes(u1, u2, colour = tissue)) + geom_point(size = pt, stroke = 0) +
+      scale_colour_manual(values = c(normal = "#3B6FB6", tumour = "#C0392B"), name = NULL) + base +
+      guides(colour = guide_legend(override.aes = list(size = 3))) + ggtitle("normal vs tumour cores")))
+  pal_l <- celltype_palette(d$label, rep(pal_lineage, nrow(d)))
+  plots <- c(plots, list(ggplot(d, aes(u1, u2, colour = label)) + geom_point(size = pt, stroke = 0) +
+    scale_colour_manual(values = pal_l, name = NULL) + base +
+    guides(colour = guide_legend(override.aes = list(size = 3))) + ggtitle("current labels")))
+  save_fig(patchwork::wrap_plots(plots, nrow = 1), paste0(prefix, "_", g, "_umap_by_core"),
+           width = 9.5 * length(plots) + 2, height = 9, dpi = 160)
+}
+
+## which labels make up each core, normal vs tumour (one joint clustering)
+plot_site_composition <- function(meta, lab, site, g, prefix, what, pal_lineage = "Epithelial") {
+  m <- meta[names(lab), ]
+  m$label <- lab
+  comp <- m |> filter(!is.na(core_id)) |> count(is_tumour, organ, core_id, label) |>
+    group_by(core_id) |> mutate(frac = n / sum(n)) |> ungroup()
+  if (!nrow(comp)) return(invisible(NULL))
+  comp$panel <- ifelse(comp$is_tumour, "tumour", "normal")
+  pal <- celltype_palette(comp$label, rep(pal_lineage, nrow(comp)))
+  p <- ggplot(comp, aes(core_id, frac, fill = factor(label, levels = names(pal)))) +
+    geom_col(width = 0.9) +
+    facet_grid(~ panel + organ, scales = "free_x", space = "free_x", labeller = label_wrap_gen(18)) +
+    scale_fill_manual(values = pal, name = "label") + scale_y_continuous(expand = c(0, 0)) +
+    theme_bw(base_size = 11) +
+    theme(axis.text.x = element_text(angle = 90, size = 7, vjust = 0.5), panel.grid = element_blank(),
+          strip.text = element_text(size = 8)) +
+    labs(x = "core", y = paste("fraction of", what, "cells"),
+         title = paste0(site, ": ", what, " cell types per core, normal vs tumour (one joint clustering)"))
+  save_fig(p, paste0(prefix, "_", g, "_composition_per_core"),
+           width = max(10, 0.25 * length(unique(comp$core_id)) + 6), height = 6.5)
+}
+
+## Annotate one lineage group per site, in each mode:
+##   normal       normal cores of the site      -> group Organ_<site><suffix>
+##   with_tumour  normal + tumour cores         -> group OrganTumour_<site><suffix>
+## sig_fun(cells) returns the signature list for those cells. Returns a list with
+## one named label vector per mode (names = cell names) and the failed groups.
+annotate_sites <- function(xen, sites, lineages, sig_fun, res, prefix, suffix = "", modes = c("normal", "with_tumour"),
+                           min_cells = 300, what = paste(lineages, collapse = " + "), pal_lineage = "Epithelial") {
+  out <- list(normal = character(), with_tumour = character(), failed = list())
+  in_lin <- xen$lineage %in% lineages
+  for (mode in modes) {
+    for (s in sites) {
+      sel <- in_lin & xen$site %in% s & (mode != "normal" | !xen$is_tumour)
+      cells <- colnames(xen)[sel]
+      g <- paste0(if (mode == "normal") "Organ_" else "OrganTumour_", s, suffix)
+      if (mode != "normal" && !any(xen$is_tumour[sel])) {
+        message(g, ": no tumour cores for this site -- skipped (same as Organ_", s, suffix, ")")
+        next
+      }
+      if (mode == "normal" && !length(cells) && any(xen$is_tumour[in_lin & xen$site %in% s])) {
+        message(g, ": tumour cores only (no normal tissue of this site on the TMA) -- see OrganTumour_", s, suffix)
+        next
+      }
+      if (length(cells) < min_cells) {
+        message(g, ": only ", length(cells), " ", what, " cells (< ", min_cells, ") -- skipped")
+        next
+      }
+      sub <- subset(xen, cells = cells)
+      ann <- tryCatch(annotate_group(sub, g, sig_fun(cells), res, comp_by = "organ", prefix = prefix, harmony = FALSE),
+                      error = function(e) {
+                        out$failed[[g]] <<- conditionMessage(e)
+                        message("!! ", g, " FAILED: ", conditionMessage(e), " -- the other sites continue.")
+                        NULL
+                      })
+      if (!is.null(ann)) {
+        plot_umap_by_core(ann$umap, sub[[]], ann$labels, g, prefix, pal_lineage)
+        if (mode != "normal") plot_site_composition(sub[[]], ann$labels, s, g, prefix, what, pal_lineage)
+        out[[mode]] <- c(out[[mode]], ann$labels)
+      }
+      rm(sub); invisible(gc())
+    }
+  }
+  out
+}
+
+## put named labels into a metadata column (NA elsewhere)
+set_labels <- function(xen, col, lab) {
+  v <- if (col %in% colnames(xen[[]])) xen[[col, drop = TRUE]] else rep(NA_character_, ncol(xen))
+  if (length(lab)) v[match(names(lab), colnames(xen))] <- unname(lab)
+  xen[[col]] <- v
+  xen
+}
