@@ -38,7 +38,15 @@ Outputs (default folder: <scripts>/config/core_grid/, read by 02_tma_dearray.R)
 
 core_name drops the sector prefix ("A_1-a" -> "1-a") so 02 matches it to tma_map.csv
 by row and column like any QuPath grid; cellscape_core keeps the full name, the
-`tma_core` of the CellScape per-cell tables.
+`tma_core` of the CellScape per-cell tables. With several sectors (or --keep-sector-prefix)
+core_name keeps it ("C_1-a", "D_1-a"), so give tma_map.csv the same core_id.
+
+A block that is split or placed differently on the Xenium slide (or two blocks on one
+slide) is fitted piece by piece: --cores (which cores) + --region (where on Xenium) +
+--part (name); every run rebuilds <slide_id>.csv from all parts, e.g.
+  ... --slide-id TMA_UC_CD --sector C D --cores-csv FL0035_C_TMA_cores.csv FL0035_D_TMA_cores.csv \
+      --cores '^C_' --region 0 0 12000 11500 --part C
+  ... (same) --cores '^D_' --region 0 11500 12000 17000 --part D
 
 Example
   python 02b_cellscape_grid_to_xenium.py --slide-id TMA_ORGAN --sector A \\
@@ -63,7 +71,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--slide-id", required=True, help="Xenium slide_id (slides.csv), e.g. TMA_ORGAN")
-    p.add_argument("--cores-csv", required=True, help="<slide>_TMA_cores.csv of the CellScape dearray")
+    p.add_argument("--cores-csv", nargs="+", required=True,
+                   help="<slide>_TMA_cores.csv of the CellScape dearray; several files are combined "
+                        "(e.g. FL0035_C_TMA_cores.csv FL0035_D_TMA_cores.csv)")
     p.add_argument("--xenium-dir", required=True, help="Xenium output folder (output-XETG...) of this slide")
     p.add_argument("--sector", nargs="+", required=True,
                    help="sector letter(s) on the Xenium slide: A for TMA_ORGAN (FL0027), C for TMA_TUMOR (FL0026); "
@@ -78,14 +88,30 @@ def parse_args(argv=None):
                    help="a core may sit up to this x core spacing away from where its neighbours put it (0 = rigid)")
     p.add_argument("--diameter-um", type=float, default=None,
                    help="core diameter on Xenium; default: median CellScape diameter x scale (one size for all cores)")
+    p.add_argument("--cores", default=None,
+                   help="only cores whose CellScape name matches this regular expression, e.g. '^A_[1-7]-[a-g]$' "
+                        "(fit a block that was split on the Xenium slide piece by piece, with --part)")
+    p.add_argument("--region", nargs=4, type=float, default=None, metavar=("XMIN", "YMIN", "XMAX", "YMAX"),
+                   help="only Xenium cells inside this box (um) are used for the fit, e.g. one block of the slide")
+    p.add_argument("--part", default=None,
+                   help="name of this partial fit (e.g. top, bottom, C, D): written as <slide>_part-<name>.*, and "
+                        "<slide>.csv / .geojson / .png are rebuilt from ALL parts of the slide")
+    p.add_argument("--orientation", default=None,
+                   help="only try this orientation (rot0, rot90, rot180, rot270, each optionally +mirror), e.g. the "
+                        "one found for the whole slide -- needed for parts that are square grids (7 x 7 looks the "
+                        "same rotated)")
+    p.add_argument("--keep-sector-prefix", action="store_true",
+                   help="keep 'A_' in core_name (automatic when several sectors are used, e.g. C_1-a and D_1-a)")
     return p.parse_args(argv)
 
 
 # ---------------------------------------------------------------------------
 # input
 # ---------------------------------------------------------------------------
-def read_cellscape_cores(path, sectors):
-    g = pd.read_csv(path)
+def read_cellscape_cores(path, sectors, core_regex=None):
+    paths = [path] if isinstance(path, str) else list(path)
+    g = pd.concat([pd.read_csv(f) for f in paths], ignore_index=True)
+    path = " + ".join(os.path.basename(f) for f in paths)
     need = {"core", "sector", "centroid_x_um", "centroid_y_um", "diameter_um"}
     if not need <= set(g.columns):
         raise ValueError(f"{path}: needs columns {sorted(need)}; found {list(g.columns)}")
@@ -95,6 +121,12 @@ def read_cellscape_cores(path, sectors):
     if bad:
         raise ValueError(f"sector(s) {bad} not in {os.path.basename(path)} (it has {have})")
     g = g[g["sector"].isin(sectors)].reset_index(drop=True)
+    if core_regex:
+        g = g[g["core"].astype(str).str.contains(core_regex, regex=True)].reset_index(drop=True)
+        if g.empty:
+            raise ValueError(f"no core of sector(s) {sectors} matches --cores '{core_regex}'")
+    if g["core"].duplicated().any():
+        raise ValueError(f"duplicated core names: {sorted(g.loc[g['core'].duplicated(), 'core'].unique())[:10]}")
     g["cellscape_missing"] = (g["missing"].astype(str).str.lower().isin(["1", "true", "t", "yes"])
                               if "missing" in g else False)
     print(f"{len(g)} cores in sector {'+'.join(sectors)} of {os.path.basename(path)} "
@@ -166,14 +198,17 @@ def disc_template(pts, radii, weights, b):
     return tpl, t0
 
 
-def coarse_search(P, diam, weights, img, img0, b, max_tilt, max_scale):
+def coarse_search(P, diam, weights, img, img0, b, max_tilt, max_scale, only=None):
     c = P.mean(0)
     Pc = P - c
     tilts = np.arange(-max_tilt, max_tilt + 1e-9, 2.0) if max_tilt > 0 else np.array([0.0])
     scales = np.arange(1 - max_scale, 1 + max_scale + 1e-9, 0.02) if max_scale > 0 else np.array([1.0])
     best = None
     results = []
-    for name, M in orientations():
+    cands = [(n, M) for n, M in orientations() if not only or n == only]
+    if not cands:
+        raise ValueError(f"--orientation {only}: use one of {[n for n, _ in orientations()]}")
+    for name, M in cands:
         best_o = None
         for tilt in tilts:
             for s in scales:
@@ -450,8 +485,21 @@ def main(argv=None):
 
     if isinstance(a.sector, str):          # notebook: sector='C' or 'A, B' instead of a list
         a.sector = [t for t in re.split(r"[\s,;]+", a.sector.strip()) if t]
-    g = read_cellscape_cores(a.cores_csv, a.sector)
+    if isinstance(a.cores_csv, str):       # notebook: one path as a string
+        a.cores_csv = [a.cores_csv]
+    for k, v in (("cores", None), ("region", None), ("part", None), ("keep_sector_prefix", False),
+                 ("orientation", None)):
+        if not hasattr(a, k):              # older notebook parameter cells
+            setattr(a, k, v)
+    g = read_cellscape_cores(a.cores_csv, a.sector, a.cores)
     xy = read_xenium_cells(a.xenium_dir)
+    if a.region:
+        x0, y0, x1, y1 = a.region
+        inside = (xy[:, 0] >= x0) & (xy[:, 0] <= x1) & (xy[:, 1] >= y0) & (xy[:, 1] <= y1)
+        print(f"--region {a.region}: {int(inside.sum()):,} of {len(xy):,} Xenium cells used for the fit")
+        if inside.sum() < 1000:
+            raise ValueError("fewer than 1000 Xenium cells inside --region -- check the coordinates (um)")
+        xy = xy[inside]
     P = g[["centroid_x_um", "centroid_y_um"]].to_numpy(dtype=np.float64)
     cs_diam = g["diameter_um"].to_numpy(dtype=np.float64)
     # one size for all cores: the CellScape ellipses vary with how each one was drawn
@@ -460,7 +508,7 @@ def main(argv=None):
     weights = np.where(g["cellscape_missing"], 0.5, 1.0)
 
     img, img0 = density_image(xy, a.bin_um, pad_um=float(np.ptp(P, axis=0).max()) * 0.6)
-    best, _ = coarse_search(P, diam, weights, img, img0, a.bin_um, a.max_tilt, a.max_scale_change)
+    best, _ = coarse_search(P, diam, weights, img, img0, a.bin_um, a.max_tilt, a.max_scale_change, a.orientation)
     A, t, pred, obs, n, keep = refine(P, diam, xy, best["A"], best["t"], a.min_cells, spacing)
 
     s = math.sqrt(abs(np.linalg.det(A)))
@@ -501,7 +549,8 @@ def main(argv=None):
                          ["both", "xenium_only", "cellscape_only"], "neither")
 
     out = pd.DataFrame({
-        "core_name": g["core"].astype(str).str.replace(r"^[A-Za-z]+_", "", regex=True),
+        "core_name": (g["core"].astype(str) if (a.keep_sector_prefix or len(a.sector) > 1)
+                      else g["core"].astype(str).str.replace(r"^[A-Za-z]+_", "", regex=True)),
         "x_um": final[:, 0].round(2), "y_um": final[:, 1].round(2),
         "diameter_um": round(d_um, 1),
         "missing": xen_missing,
@@ -519,7 +568,8 @@ def main(argv=None):
     fit_res = np.linalg.norm(obs[keep] - pred[keep], axis=1) if keep is not None and keep.any() else np.array([np.nan])
     info = dict(orientation=best["orientation"], **describe(A))
     info.update(
-        slide_id=a.slide_id, sectors=a.sector, cellscape_cores_csv=os.path.abspath(a.cores_csv),
+        slide_id=a.slide_id, sectors=a.sector, cellscape_cores_csv=[os.path.abspath(f) for f in a.cores_csv],
+        cores_regex=a.cores, region_um=a.region, part=a.part,
         xenium_dir=os.path.abspath(a.xenium_dir),
         note="x_xenium_um = A @ [x_cellscape_um, y_cellscape_um] + t ; CellScape um = CellScape file pixels x 0.18 "
              "(file orientation, not the mirrored QuPath view)",
@@ -532,16 +582,37 @@ def main(argv=None):
         search_score=round(best["score"], 4),
     )
 
-    grid_csv = os.path.join(out_dir, f"{a.slide_id}.csv")
+    stem = a.slide_id + (f"_part-{a.part}" if a.part else "")
+    grid_csv = os.path.join(out_dir, f"{stem}.csv")
     out.to_csv(grid_csv, index=False)
-    with open(os.path.join(out_dir, f"{a.slide_id}_cellscape_to_xenium.json"), "w") as fh:
+    with open(os.path.join(out_dir, f"{stem}_cellscape_to_xenium.json"), "w") as fh:
         json.dump(info, fh, indent=2)
     px_um = xenium_pixel_size(a.xenium_dir)
-    gj = os.path.join(out_dir, f"{a.slide_id}_grid_qupath.geojson")
-    write_qupath_geojson(out, px_um, gj)
-    fig = plot(xy, out, a.slide_id, a.sector, info)
-    png = os.path.join(out_dir, f"{a.slide_id}_grid_on_xenium.png")
+    fig = plot(xy, out, a.slide_id + (f" (part {a.part})" if a.part else ""), a.sector, info)
+    png = os.path.join(out_dir, f"{stem}_grid_on_xenium.png")
     fig.savefig(png, dpi=200)
+    if a.part:
+        # the slide's grid = all its parts (each core from the part that fitted it last)
+        import glob
+        parts = sorted(glob.glob(os.path.join(out_dir, f"{a.slide_id}_part-*.csv")), key=os.path.getmtime)
+        allg = pd.concat([pd.read_csv(f) for f in parts], ignore_index=True)
+        allg = allg.drop_duplicates("cellscape_core", keep="last").reset_index(drop=True)
+        dup = allg["core_name"][allg["core_name"].duplicated()]
+        if len(dup):
+            print(f"WARNING: the same core_name in several parts: {sorted(dup.unique())[:10]} -- "
+                  "use --keep-sector-prefix")
+        allg.to_csv(os.path.join(out_dir, f"{a.slide_id}.csv"), index=False)
+        print(f"{a.slide_id}.csv rebuilt from {len(parts)} part(s): "
+              + ", ".join(os.path.basename(f) for f in parts) + f" -> {len(allg)} cores")
+        xy_all = read_xenium_cells(a.xenium_dir)
+        info_all = dict(info, orientation="+".join(sorted({json.load(open(f.replace(".csv", "_cellscape_to_xenium.json")))
+                                                            ["orientation"] for f in parts})))
+        figa = plot(xy_all, allg, a.slide_id + " (all parts)", sorted(allg["sector"].astype(str).unique()), info_all)
+        figa.savefig(os.path.join(out_dir, f"{a.slide_id}_grid_on_xenium.png"), dpi=200)
+        write_qupath_geojson(allg, px_um, os.path.join(out_dir, f"{a.slide_id}_grid_qupath.geojson"))
+    else:
+        write_qupath_geojson(out, px_um, os.path.join(out_dir, f"{a.slide_id}_grid_qupath.geojson"))
+    gj = os.path.join(out_dir, f"{a.slide_id}_grid_qupath.geojson")
 
     counts = out["presence"].value_counts()
     print(f"\nCellScape -> Xenium: {info['orientation']} (rotation {info['rotation_deg']} deg, "
