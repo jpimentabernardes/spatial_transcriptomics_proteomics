@@ -632,7 +632,8 @@ def main(argv=None):
         print(f"NOTE: {os.path.basename(edited)} (your manual corrections) exists -- 02 uses it, not this new grid. "
               "Delete it to use the new grid.")
     print(f"\nwritten: {grid_csv}\n         {png}\n         {gj}  (QuPath, for manual corrections)\n"
-          f"Next: 02_tma_dearray.R (QuPath grid mode picks up {os.path.basename(grid_csv)}); its core names "
+          f"Next: 02_tma_dearray.R (QuPath grid mode picks up {a.slide_id}.csv"
+          f"{', built from all parts -- fit every part first' if a.part else ''}); its core names "
           f"('{out['core_name'].iloc[0]}') are matched to tma_map.csv by row + column.")
 
 
