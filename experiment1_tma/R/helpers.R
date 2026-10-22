@@ -114,18 +114,20 @@ read_tma_map <- function(path = TMA_MAP_CSV) {
   m$core_row <- as.character(m$core_row)
   m$core_col <- as.character(m$core_col)
   ## the same line twice (copy / paste): keep one
+  file_line <- seq_len(nrow(m)) + 1                      # line in the file (+ header)
   exact <- duplicated(m)
   if (any(exact)) {
     message(basename(path), ": dropped ", sum(exact), " exact duplicate row(s): ",
             paste(unique(m$core_id[exact]), collapse = ", "))
     m <- m[!exact, , drop = FALSE]
+    file_line <- file_line[!exact]
   }
   dup <- unique(m$core_id[duplicated(m$core_id)])
   if (length(dup) > 0) {
     rows <- which(m$core_id %in% dup)
     show <- m[rows, intersect(c("slide_id", "core_row", "core_col", "core_id", "patient_id", "organ", "diagnosis"),
                               colnames(m))]
-    rownames(show) <- paste0("line ", rows + 1)          # + header line
+    rownames(show) <- paste0("line ", file_line[rows])
     stop("core_id must be unique across slides: ", paste(dup, collapse = ", "),
          " -- these rows of ", basename(path), " share a core_id (one of each pair is probably another core):\n",
          paste(utils::capture.output(print(show)), collapse = "\n"), call. = FALSE)
