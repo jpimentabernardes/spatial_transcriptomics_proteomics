@@ -19,6 +19,8 @@ Settings (environment variables):
     SEGGER_TILING   auto (quadtree, square tiles if it fails; default) | square (square tiles
                     only) | adaptive (plain segger, no fallbacks at all)
     SEGGER_TILE_UM  side length of the square tiles in um (default: from the transcript density)
+    SEGGER_TILE_FILL  default tiles hold this fraction of segger's node target in the densest spot
+                    (default 0.6; lower it if segger still says a tile is 'greater than bin_capacity')
 """
 import math
 import os
@@ -66,14 +68,19 @@ class GridTiling(Tiling):
         return self._tiles
 
 
-def side_from_density(xy, max_tile_size, bin_um=50.0):
-    """Side length (um) at which the densest squares (99.9th percentile) hold ~max_tile_size nodes."""
+FILL = float(os.environ.get("SEGGER_TILE_FILL", "0.6") or 0.6)
+
+
+def side_from_density(xy, max_tile_size, bin_um=100.0):
+    """Side length (um) at which the DENSEST square holds ~FILL x max_tile_size nodes. The headroom matters:
+    segger batches by edges (--max-edges-per-batch, 1e6), and dense tissue has more edges per node, so a
+    tile sized to the full node target can exceed it ('At least one tile ... greater than bin_capacity')."""
     span = xy.max(0) - xy.min(0)
     nb = np.maximum(1, np.ceil(span / bin_um)).astype(int)
     h, _, _ = np.histogram2d(xy[:, 0], xy[:, 1], bins=nb)
     area = max(span[0] / nb[0], 1e-6) * max(span[1] / nb[1], 1e-6)
-    dense = np.percentile(h[h > 0], 99.9) / area           # nodes per um^2
-    return float(np.clip(math.sqrt(max_tile_size / dense), 100.0, 1000.0))
+    dense = h.max() / area                                    # nodes per um^2 in the densest square
+    return float(np.clip(math.sqrt(FILL * max_tile_size / dense), 50.0, 1000.0))
 
 
 def square_tiling(positions, max_tile_size):
