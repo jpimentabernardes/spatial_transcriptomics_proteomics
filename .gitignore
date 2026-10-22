@@ -1,1 +1,5 @@
 __pycache__/
+# clinical data never goes into git (de-identified or not)
+experiment1_tma/config/clinical*.csv
+experiment1_tma/config/clinical*.tsv
+experiment1_tma/config/clinical*.xlsx

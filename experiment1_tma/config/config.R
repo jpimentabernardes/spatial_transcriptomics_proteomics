@@ -234,3 +234,17 @@ INSPECT_CELLPOSE_MODE      <- "nuclei_expand"   # as 03a --mode
 INSPECT_CELLPOSE_EXPAND_UM <- 5                 # as 03a --expand-um
 
 set.seed(42)
+
+## -----------------------------------------------------------------------
+## UC biopsy TMAs (05_uc_insights.R, 05_uc_genes_eosinophils.R). Defaults live in
+## R/uc_helpers.R; uncomment to change. The clinical table must be de-identified
+## (no birthday, case / journal numbers, names, exact dates); config/clinical*.csv
+## is git-ignored. It is joined to the cores by a core_id column, by TMA.Sector +
+## Koordinate, or by patient_id.
+## -----------------------------------------------------------------------
+## UC_CLINICAL_CSV   <- file.path(CONFIG_DIR, "clinical_uc.csv")   # or EXP1_UC_CLINICAL=/path
+## UC_NANCY_COL      <- "Nancy_TMA"      # Nancy per core (tma_map column); default Nancy_TMA, else Nancy
+## UC_NANCY_HIGH_MIN <- 2                # "high" = Nancy >= 2 (active disease)
+## UC_OUTCOME_COLS   <- c("Disease.Control", "HistoEndoscopic.Remission", "Endoscopic.Remission")
+## UC_GENES          <- c("KRT7", "CXCL1", "SLC6A14")   # or EXP1_UC_GENES=KRT7,CXCL1
+## UC_EOS_TOP_N      <- 6                # eosinophil-rich cores shown close up
