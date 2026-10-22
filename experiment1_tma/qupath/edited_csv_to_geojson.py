@@ -5,10 +5,11 @@ Turns <slide>_edited.csv (from export_core_edits.groovy) or <slide>.csv (from 02
 a GeoJSON of named circles that QuPath imports (File > Import objects from file, or drag
 the file onto the image) on the Xenium morphology image (morphology_focus/ch0000_dapi.ome.tif).
 
-Classes: missing (missing = TRUE), both (has tissue), and check: cores that are not where
+Classes: missing (missing = TRUE), both (has tissue), and check: cores WITH TISSUE that are not where
 their row / column puts them (more than --max-dev x core spacing from a grid fitted to
 all cores of their sector -- e.g. two names swapped, a circle dragged onto a neighbour),
-plus cores that overlap another. Fix those, set their class back to both / missing, and
+plus cores that overlap another core with tissue (empty cores are skipped by 02, so where
+they sit does not matter). Fix those, set their class back to both / missing, and
 export again with export_core_edits.groovy (a core left as 'check' counts as tissue).
 
 Core names like A_1-a, C_3-f (sector _ number - letter) are checked; other names are
@@ -84,6 +85,12 @@ def main(argv=None):
         miss = g["missing"].astype(str).str.lower().isin(["true", "t", "1", "yes"]) if "missing" in g else False
         g["cls"] = np.where(miss, "missing", "both")
         why = flag_cores(g, a.max_dev)
+        # empty cores get no cells in 02 (missing cores are skipped), so their position does not matter:
+        # flag only cores with tissue, and overlaps only between two cores with tissue
+        why[miss] = ""
+        tissue = set(g.loc[~np.asarray(miss), "core_name"].astype(str)) if not isinstance(miss, bool) else set(g["core_name"].astype(str))
+        why = why.map(lambda w: "; ".join(p for p in w.split("; ") if not p.startswith("overlaps ")
+                                          or p.split()[1] in tissue) if w else w)
         g.loc[why != "", "cls"] = "check"
         feats = []
         for r, w in zip(g.itertuples(index=False), why):
