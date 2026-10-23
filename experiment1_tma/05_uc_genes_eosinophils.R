@@ -270,12 +270,17 @@ if (any(!is.na(core_tab$nancy))) {
 if ("eos" %in% PARTS) {
 is_eos <- m$class %in% "Eosinophil"
 if (!any(is_eos)) message("!! No cell label matches 'eosin' -- eosinophils are counted with the marker-based call only. ",
-                          "Label a cluster 'Eosinophil' in 04 (or adapt UC_CLASS_PATTERNS) for the label-based count.")
+                          "Run 04d_uc_eosinophils_from_granulocytes.R (eosinophils inside the neutrophil cluster), or label ",
+                          "a cluster 'Eosinophil' in 04.")
 eg <- match_case(UC_EOS_GENES, rownames(counts)); eg <- eg[eg %in% rownames(counts)]
 message("Eosinophil genes on the panel: ", paste(eg, collapse = ", "))
-eos_marker <- if (length(eg)) {
+## marker-based call: immune, non-mast cells (mast cells also express SIGLEC8) with >= UC_EOS_MIN_COUNTS
+## eosinophil-gene counts, at least one of them from an eosinophil-specific gene (ALOX15 is also epithelial)
+eos_spec <- setdiff(eg, match_case("ALOX15", rownames(counts)))
+eos_marker <- if (length(eg) && length(eos_spec)) {
   ec <- Matrix::colSums(counts[eg, , drop = FALSE])
-  ec >= UC_EOS_MIN_COUNTS & m$compartment != "Epithelium"
+  es <- Matrix::colSums(counts[eos_spec, , drop = FALSE])
+  ec >= UC_EOS_MIN_COUNTS & es >= 1 & m$compartment == "Immune" & !m$class %in% "Mast"
 } else rep(FALSE, nrow(m))
 if (!any(is_eos)) is_eos <- eos_marker
 m$eos <- is_eos
