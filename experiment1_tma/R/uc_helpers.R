@@ -59,6 +59,15 @@ uc_cell_table <- function(xen, label_col = UC_LABEL_COL) {
   m <- m[!is.na(m$core_id), ]
   m$label <- as.character(m[[label_col]])
   m$label[is.na(m$label) | !nzchar(m$label)] <- "unlabelled"
+  ## the same name in two lineages (e.g. "Proliferating" in Immune and in Stroma) -> "Proliferating (Immune)"
+  lin <- ifelse(is.na(m$lineage), "NA", as.character(m$lineage))
+  multi <- tapply(lin, m$label, function(v) length(unique(v)) > 1)
+  multi <- names(multi)[multi]
+  if (length(multi)) {
+    i <- m$label %in% multi
+    m$label[i] <- paste0(m$label[i], " (", lin[i], ")")
+    message("Labels used in more than one lineage, split by lineage: ", paste(multi, collapse = ", "))
+  }
   m$compartment <- dplyr::case_when(m$lineage %in% EPI_LINEAGES ~ "Epithelium",
                                     m$lineage %in% IMMUNE_LINEAGES ~ "Immune",
                                     m$lineage %in% STROMA_LINEAGES ~ "Stroma", TRUE ~ "Other")
