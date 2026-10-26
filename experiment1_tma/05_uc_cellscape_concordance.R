@@ -246,4 +246,41 @@ p_pc <- ggplot(pc[!is.na(pc$spearman_composition), ], aes(tma_core, spearman_com
        subtitle = sprintf("dashed = median (%.2f); low bars = cores to look at (tables/%s_per_core.csv)",
                           stats::median(pc$spearman_composition, na.rm = TRUE), pre))
 save_fig(p_pc, paste0(pre, "_per_core"), width = max(10, 0.09 * nrow(pc) + 3), height = 5)
+
+## -----------------------------------------------------------------------
+## 4. cross-check: every Xenium population vs every CellScape population (Spearman over
+##    cores). A Xenium population that follows a DIFFERENT CellScape population better
+##    than its own (off-diagonal hot spot) points to a mislabelled cluster.
+## -----------------------------------------------------------------------
+cx <- base[colSums(XM[, base, drop = FALSE] > 0, na.rm = TRUE) >= 5]
+cc <- base[colSums(CM[, base, drop = FALSE] > 0, na.rm = TRUE) >= 5]
+if (length(cx) >= 2 && length(cc) >= 2) {
+  R <- outer(cx, cc, Vectorize(function(a, b) {
+    ok <- !is.na(XM[, a]) & !is.na(CM[, b])
+    if (sum(ok) < 5 || stats::sd(XM[ok, a]) == 0 || stats::sd(CM[ok, b]) == 0) NA else
+      suppressWarnings(stats::cor(XM[ok, a], CM[ok, b], method = "spearman"))
+  }))
+  dimnames(R) <- list(cx, cc)
+  best <- data.frame(xenium_population = cx, same_population_rho = R[cbind(cx, ifelse(cx %in% cc, cx, NA))],
+                     best_cellscape_match = cc[apply(R, 1, which.max)], best_rho = apply(R, 1, max, na.rm = TRUE))
+  best$flag <- ifelse(best$best_cellscape_match != best$xenium_population &
+                        (is.na(best$same_population_rho) | best$best_rho - best$same_population_rho >= 0.2),
+                      "follows another CellScape population -- check the label", "")
+  save_table(best, paste0(pre, "_cross_best_match"))
+  message("Xenium populations that follow ANOTHER CellScape population better than their own:")
+  print(best[nzchar(best$flag), 1:4], row.names = FALSE, digits = 2)
+  rd <- data.frame(xenium = rep(cx, length(cc)), cellscape = rep(cc, each = length(cx)), rho = as.vector(R))
+  rd$xenium <- factor(rd$xenium, levels = rev(cx)); rd$cellscape <- factor(rd$cellscape, levels = cc)
+  rd$same <- as.character(rd$xenium) == as.character(rd$cellscape)
+  p_x <- ggplot(rd, aes(cellscape, xenium, fill = rho)) + geom_tile(colour = "white", linewidth = 0.5) +
+    geom_tile(data = rd[rd$same, ], colour = "black", fill = NA, linewidth = 0.8) +
+    geom_text(aes(label = ifelse(is.na(rho), "", sprintf("%.2f", rho))), size = 3.1) +
+    scale_fill_gradient2(low = "#B2182B", mid = "white", high = "#2166AC", midpoint = 0, limits = c(-1, 1), na.value = "grey90",
+                         name = "Spearman\nover cores") +
+    theme_bw(base_size = 11) + theme(axis.text.x = element_text(angle = 40, hjust = 1), panel.grid = element_blank()) +
+    labs(x = "CellScape population", y = sprintf("Xenium population (%s)", SEGMENTATION),
+         title = "Which CellScape population does each Xenium population follow?",
+         subtitle = "black boxes = same population; a strong blue tile OFF the boxes = the Xenium cluster may carry the wrong label")
+  save_fig(p_x, paste0(pre, "_cross"), width = 12, height = 9)
+}
 message("Done.")
