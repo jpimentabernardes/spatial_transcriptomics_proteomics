@@ -97,6 +97,26 @@ annotate_group <- function(obj, group, sigs, res, comp_by, prefix = "04", harmon
                      top_markers = unname(top_txt[cl]), top_organs = unname(top_organs(meta, col)[cl]),
                      suggestion = sug$suggestion, margin = sug$margin)
   summ$top_markers[is.na(summ$top_markers)] <- "(no markers)"
+  ## low-information clusters: few transcripts and / or no clearly enriched marker. They are
+  ## often low-RNA cells (e.g. eosinophils) or poorly segmented cells and pick up a label
+  ## from noise; in the L2 groups their default label becomes "Unclear_<group>" (marker suggestion
+  ## kept in marker_suggestion) -- decide yourself what they are.
+  cnt_med <- tapply(meta$nCount_Xenium, as.character(meta[[col]]), stats::median)
+  summ$median_transcripts <- as.numeric(cnt_med[cl])
+  summ$rel_transcripts <- round(summ$median_transcripts / stats::median(meta$nCount_Xenium), 2)
+  best_fc <- if (nrow(mk)) tapply(mk$avg_log2FC[mk$pct.1 >= 0.2], as.character(mk$cluster[mk$pct.1 >= 0.2]), max) else numeric()
+  summ$max_marker_log2FC <- round(as.numeric(best_fc[cl]), 2)
+  summ$low_information <- summ$rel_transcripts < 0.5 | is.na(summ$max_marker_log2FC) | summ$max_marker_log2FC < 1
+  summ$marker_suggestion <- summ$suggestion
+  if (group != "L1_lineage" && any(summ$low_information)) {
+    unclear <- paste0("Unclear_", sub("^Epi_", "", group))
+    summ$suggestion[summ$low_information] <- unclear
+    message(group, ": low-information clusters (few transcripts / no strong marker; default label '", unclear, "'): ",
+            paste(sprintf("%s (%s cells, x%.2f transcripts, best log2FC %s, markers say %s)", summ$cluster[summ$low_information],
+                          format(summ$n_cells[summ$low_information], big.mark = ","), summ$rel_transcripts[summ$low_information],
+                          summ$max_marker_log2FC[summ$low_information], summ$marker_suggestion[summ$low_information]),
+                  collapse = "; "))
+  }
   if ("is_tumour" %in% colnames(meta) && length(unique(meta$is_tumour)) > 1) {
     ## which clusters are shared by normal and tumour cores, which are tumour-only
     pt <- tapply(meta$is_tumour, as.character(meta[[col]]), mean)
