@@ -21,7 +21,8 @@
 ## torn edges are not counted; CellScape may use the annotated core area instead --
 ## compare ratios between cores rather than absolute numbers if they differ.
 ##
-## slide = UC_DENSITY_SLIDE_PREFIX + sector (default "FL0035Sector" -> FL0035SectorA);
+## slide = the CellScape slide of the Xenium slide + "Sector" + sector (UC_DENSITY_SLIDE_IDS:
+## TMA_UC_A = FL0033, TMA_UC_CD = FL0034 -> FL0033SectorA, FL0034SectorC, FL0034SectorD);
 ## tma_core = <sector>_<number>-<letter> (A_1-c), from the core_id.
 ##
 ## INPUT : xenium_<seg>_annotated.rds (04 / 04d), config/uc_density_categories.csv
@@ -35,7 +36,7 @@ source("R/helpers.R")
 source("R/uc_helpers.R")
 
 UC_DENSITY_CATEGORIES_CSV <- get0("UC_DENSITY_CATEGORIES_CSV", ifnotfound = file.path(CONFIG_DIR, "uc_density_categories.csv"))
-UC_DENSITY_SLIDE_PREFIX   <- get0("UC_DENSITY_SLIDE_PREFIX", ifnotfound = "FL0035Sector")
+UC_DENSITY_SLIDE_IDS      <- get0("UC_DENSITY_SLIDE_IDS", ifnotfound = c(TMA_UC_A = "FL0033", TMA_UC_CD = "FL0034"))
 UC_DENSITY_FOXP3_MIN      <- get0("UC_DENSITY_FOXP3_MIN", ifnotfound = 1)
 UC_DENSITY_SPLIT_CD8      <- get0("UC_DENSITY_SPLIT_CD8", ifnotfound = TRUE)    # generic T cells -> CD4 / CD8 by CD8A / CD8B
 EXPORT_DIR <- file.path(PROJECT_DIR, "data", "export")
@@ -91,7 +92,12 @@ dens <- sweep(as.matrix(cnt), 1, area, "/")
 dens[, cats$category[!nzchar(cats$label_regex) & !cats$category %in% "T_cells_CD8FOXP3"]] <- NA
 key <- strsplit(core_key_from_id(cores), "|", fixed = TRUE)
 sector <- toupper(vapply(key, `[`, "", 1)); num <- vapply(key, `[`, "", 2); let <- tolower(vapply(key, `[`, "", 3))
-out <- data.frame(slide = paste0(UC_DENSITY_SLIDE_PREFIX, sector), tma_core = sprintf("%s_%s-%s", sector, num, let),
+xslide <- m$slide_id[match(cores, m$core_id)]
+fl <- ifelse(xslide %in% names(UC_DENSITY_SLIDE_IDS), UC_DENSITY_SLIDE_IDS[xslide], xslide)
+if (any(!xslide %in% names(UC_DENSITY_SLIDE_IDS)))
+  message("No CellScape slide name for ", paste(unique(xslide[!xslide %in% names(UC_DENSITY_SLIDE_IDS)]), collapse = ", "),
+          " -- the Xenium slide_id is used (set UC_DENSITY_SLIDE_IDS in config.R).")
+out <- data.frame(slide = paste0(fl, "Sector", sector), tma_core = sprintf("%s_%s-%s", sector, num, let),
                   TMA_Sector_join = sector, Koordinate_join = paste0(num, let), check.names = FALSE)
 for (c in cats$category) out[[paste0(c, "_density_per_mm2")]] <- dens[, c]
 o <- order(sector, as.integer(num), let)
@@ -99,7 +105,7 @@ out <- out[o, ]
 f <- file.path(EXPORT_DIR, sprintf("05uc_immune_densities_per_core_%s.csv", SEGMENTATION))
 utils::write.csv(out, f, row.names = FALSE, na = "NA")
 message("Density table (", nrow(out), " cores) -> ", f)
-qc <- data.frame(core_id = cores, tma_core = sprintf("%s_%s-%s", sector, num, let), area_mm2 = round(area, 4),
+qc <- data.frame(core_id = cores, xenium_slide = xslide, tma_core = sprintf("%s_%s-%s", sector, num, let), area_mm2 = round(area, 4),
                  n_cells = as.integer(table(factor(m$core_id, levels = cores))), cnt, check.names = FALSE)[o, ]
 save_table(qc, "05uc_immune_density_counts_per_core")
 print(utils::head(out, 3), row.names = FALSE)
