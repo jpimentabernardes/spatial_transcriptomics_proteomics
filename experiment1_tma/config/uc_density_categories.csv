@@ -1,0 +1,14 @@
+category,label_regex,notes
+B_cells,^b_cell|^b cell|^b$,
+Dendritic_Cells,cdc|mregdc|pdc|dendritic|^dc,
+Eosinophile_Granulocytes,eosin,label from 04 / 04d
+M1_Macrophages,inflammatory_mono|inflam.*macro|ifn_response,pro-inflammatory (IL1B / OSM / TREM1) and IFN-response (CXCL9 / CXCL10) macrophages
+M2_Macrophages,^macrophage,resident CD163 / C1Q / MS4A7 macrophages
+Neutrophile_Granulocytes,neutro,
+Plasma_Cells,plasma,
+Special_Macrophages,,no RNA equivalent defined -- fill in a regex (e.g. ^monocyte) or leave empty (column = NA)
+T_cells_CD4FOXP3,treg,Treg label + CD4 T cells with FOXP3 >= UC_DENSITY_FOXP3_MIN (see script)
+T_cells_CD4,cd4_t|tfh|th17|naive|^t_cell,"CD4 is not on the panel: CD4 = T cells without CD8A / CD8B; generic T_cell labels are split by CD8A / CD8B"
+T_cells_CD8FOXP3,,CD8 T cells with FOXP3 >= UC_DENSITY_FOXP3_MIN (see script)
+T_cells_CD8,cd8_t,
+T_cells_GammaDelta,gd_t|gamma,
