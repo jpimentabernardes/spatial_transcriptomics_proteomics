@@ -418,3 +418,22 @@ legend_black <- function(p) {
   patchwork::wrap_elements(full = g$grobs[[i[1]]]) +
     theme(plot.background = element_rect(fill = "black", colour = NA))
 }
+
+## how "nice" each core is for a figure: round (hull circularity), solid (tissue fills the
+## hull), with both epithelium (>= 35%) and immune cells (>= 15%), and enough cells
+core_shape_scores <- function(m) {
+  out <- dplyr::bind_rows(lapply(split(seq_len(nrow(m)), m$core_id), function(i) {
+    xy <- as.matrix(m[i, c("x_um", "y_um")])
+    h <- xy[grDevices::chull(xy), , drop = FALSE]
+    hx <- c(h[, 1], h[1, 1]); hy <- c(h[, 2], h[1, 2])
+    A <- abs(sum(hx[-1] * hy[-length(hy)] - hx[-length(hx)] * hy[-1])) / 2
+    Pm <- sum(sqrt(diff(hx)^2 + diff(hy)^2))
+    data.frame(core_id = m$core_id[i[1]], n_cells = length(i), roundness = 4 * pi * A / max(Pm^2, 1),
+               solidity = min(1, core_area_mm2(xy[, 1], xy[, 2]) * 1e6 / max(A, 1)),
+               epithelium_pct = 100 * mean(m$compartment[i] == "Epithelium"),
+               immune_pct = 100 * mean(m$compartment[i] == "Immune"))
+  }))
+  out$score <- with(out, roundness * solidity * pmin(epithelium_pct / 35, 1) * pmin(immune_pct / 15, 1) *
+                      pmin(n_cells / 1500, 1))
+  out
+}
