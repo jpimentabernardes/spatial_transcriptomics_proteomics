@@ -14,8 +14,14 @@
 ##     "T_cell" label is split by CD8A / CD8B (>= 1 transcript = CD8)
 ##   - FOXP3: CD4 / CD8 T cells with >= UC_DENSITY_FOXP3_MIN FOXP3 transcripts go to
 ##     T_cells_CD4FOXP3 / T_cells_CD8FOXP3 (as a FOXP3 stain would); the Treg label is CD4FOXP3
-##   - a category with an empty regex (Special_Macrophages by default) is written as NA
-## Each cell is counted once (first matching category, in the order of the csv).
+##   - optional gene rules per category (columns require_all / require_any of the csv: genes
+##     separated by ";", each needing >= 1 transcript in the cell); rows with gene rules are
+##     assigned FIRST, so e.g. Special_Macrophages takes its cells before M1 / M2 get the rest.
+##     Special_Macrophages (CellScape: CD68+ CD163+ CD11c+) is a PROXY: CD68 and CD11c (ITGAX)
+##     are not on the panel -> macrophage / monocyte labels with CD163 or VSIG4 (CD68 / CD163
+##     macrophage marker) and a CD11c-like antigen-presenting signal (CD86 / CD80 / CD83 / FCER1A)
+##   - a category with an empty regex is written as NA
+## Each cell is counted once (first matching category: gene-rule rows, then the csv order).
 ##
 ## Area = tissue area of the core from the cells (occupied 20 um bins), so holes and
 ## torn edges are not counted; CellScape may use the annotated core area instead --
@@ -28,7 +34,7 @@
 ## INPUT : xenium_<seg>_annotated.rds (04 / 04d), config/uc_density_categories.csv
 ## OUTPUT: data/export/05uc_immune_densities_per_core_<seg>.csv   (the table)
 ##         tables/05uc_immune_density_label_mapping.csv            (which label went where -- check it)
-##         tables/05uc_immune_density_counts_per_core.csv          (cell counts and area behind the densities)
+##         tables/05uc_immune_density_counts_per_core_<seg>.csv    (cell counts and area behind the densities)
 ## =============================================================================
 
 source("config/config.R")
@@ -43,7 +49,10 @@ EXPORT_DIR <- file.path(PROJECT_DIR, "data", "export")
 dir.create(EXPORT_DIR, showWarnings = FALSE, recursive = TRUE)
 
 cats <- read_config_csv(UC_DENSITY_CATEGORIES_CSV, stringsAsFactors = FALSE)
-cats$label_regex[is.na(cats$label_regex)] <- ""
+for (c in c("label_regex", "require_all", "require_any")) {
+  if (!c %in% colnames(cats)) cats[[c]] <- ""
+  cats[[c]][is.na(cats[[c]])] <- ""
+}
 xen <- readRDS(obj_path("annotated"))
 m <- uc_cell_table(xen)
 counts <- GetAssayData(xen, assay = "Xenium", layer = "counts")[, rownames(m)]
@@ -58,10 +67,34 @@ cd8 <- gene_n(c("CD8A", "CD8B")); foxp3 <- gene_n("FOXP3")
 lab <- tolower(m$label)
 imm <- m$compartment == "Immune"
 m$category <- NA_character_
-for (k in seq_len(nrow(cats))) {
+## a gene rule: ";" separates genes, "|" separates alternatives within one entry
+## (require_all "CD163|VSIG4" = CD163 or VSIG4; require_any "CD86;CD80" = CD86 or CD80)
+genes_ok <- function(txt, all = TRUE) {
+  ent <- trimws(unlist(strsplit(txt, ";"))); ent <- ent[nzchar(ent)]
+  if (!length(ent)) return(rep(TRUE, nrow(m)))
+  hits <- lapply(ent, function(e) {
+    g <- trimws(unlist(strsplit(e, "|", fixed = TRUE)))
+    gm <- match_case(g, rownames(counts)); miss <- g[!gm %in% rownames(counts)]
+    if (length(miss)) message("  not on the panel (ignored in the rule): ", paste(miss, collapse = ", "))
+    gm <- gm[gm %in% rownames(counts)]
+    if (!length(gm)) return(NULL)
+    Matrix::colSums(counts[gm, , drop = FALSE] > 0) > 0
+  })
+  hits <- hits[!vapply(hits, is.null, logical(1))]
+  if (!length(hits)) return(rep(!all, nrow(m)))
+  H <- do.call(cbind, hits)
+  if (all) rowSums(H) == ncol(H) else rowSums(H) > 0
+}
+has_rule <- nzchar(cats$require_all) | nzchar(cats$require_any)
+for (k in c(which(has_rule), which(!has_rule))) {
   rx <- cats$label_regex[k]
   if (!nzchar(rx)) next
   hit <- imm & is.na(m$category) & grepl(rx, lab, perl = TRUE)
+  if (has_rule[k]) {
+    message(cats$category[k], ": labels /", rx, "/", if (nzchar(cats$require_all[k])) paste0(" + all of ", cats$require_all[k]),
+            if (nzchar(cats$require_any[k])) paste0(" + any of ", cats$require_any[k]))
+    hit <- hit & genes_ok(cats$require_all[k], TRUE) & genes_ok(cats$require_any[k], FALSE)
+  }
   m$category[hit] <- cats$category[k]
 }
 is_cd4 <- m$category %in% "T_cells_CD4"; is_cd8 <- m$category %in% "T_cells_CD8"
@@ -107,6 +140,6 @@ utils::write.csv(out, f, row.names = FALSE, na = "NA")
 message("Density table (", nrow(out), " cores) -> ", f)
 qc <- data.frame(core_id = cores, xenium_slide = xslide, tma_core = sprintf("%s_%s-%s", sector, num, let), area_mm2 = round(area, 4),
                  n_cells = as.integer(table(factor(m$core_id, levels = cores))), cnt, check.names = FALSE)[o, ]
-save_table(qc, "05uc_immune_density_counts_per_core")
+save_table(qc, paste0("05uc_immune_density_counts_per_core_", SEGMENTATION))
 print(utils::head(out, 3), row.names = FALSE)
 message("Done.")
