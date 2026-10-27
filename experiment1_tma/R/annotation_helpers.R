@@ -103,10 +103,14 @@ annotate_group <- function(obj, group, sigs, res, comp_by, prefix = "04", harmon
   ## kept in marker_suggestion) -- decide yourself what they are.
   cnt_med <- tapply(meta$nCount_Xenium, as.character(meta[[col]]), stats::median)
   summ$median_transcripts <- as.numeric(cnt_med[cl])
-  summ$rel_transcripts <- round(summ$median_transcripts / stats::median(meta$nCount_Xenium), 2)
+  ## relative to ALL cells of the run (ANNOT_GLOBAL_MEDIAN, set by 04), so a group that is low
+  ## as a whole (e.g. stroma with mis-assigned low-RNA immune cells) is flagged too
+  ref_med <- get0("ANNOT_GLOBAL_MEDIAN", ifnotfound = stats::median(meta$nCount_Xenium))
+  summ$rel_transcripts <- round(summ$median_transcripts / ref_med, 2)
   best_fc <- if (nrow(mk)) tapply(mk$avg_log2FC[mk$pct.1 >= 0.2], as.character(mk$cluster[mk$pct.1 >= 0.2]), max) else numeric()
   summ$max_marker_log2FC <- round(as.numeric(best_fc[cl]), 2)
-  summ$low_information <- summ$rel_transcripts < 0.5 | is.na(summ$max_marker_log2FC) | summ$max_marker_log2FC < 1
+  summ$low_information <- is.na(summ$max_marker_log2FC) | summ$max_marker_log2FC < 1 |
+    (summ$rel_transcripts < 0.5 & summ$max_marker_log2FC < 2)       # few transcripts AND no strong marker
   summ$marker_suggestion <- summ$suggestion
   if (group != "L1_lineage" && any(summ$low_information)) {
     unclear <- paste0("Unclear_", sub("^Epi_", "", group))

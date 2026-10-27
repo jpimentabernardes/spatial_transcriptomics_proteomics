@@ -72,6 +72,7 @@ source("R/annotation_helpers.R")
 cov <- restrict_to_panel(markers$level1, panel_genes, "Level 1")
 save_table(cov$coverage, "04_panel_coverage_level1")
 xen <- NormalizeData(xen, scale.factor = median(xen$nCount_Xenium), verbose = FALSE)
+ANNOT_GLOBAL_MEDIAN <- stats::median(xen$nCount_Xenium)   # low-information flag: clusters vs all cells
 
 ## -----------------------------------------------------------------------
 ## 2. L1: lineage on all cells
