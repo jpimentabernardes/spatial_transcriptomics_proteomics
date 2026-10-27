@@ -59,19 +59,36 @@ uc_cell_table <- function(xen, label_col = UC_LABEL_COL) {
   m <- m[!is.na(m$core_id), ]
   m$label <- as.character(m[[label_col]])
   m$label[is.na(m$label) | !nzchar(m$label)] <- "unlabelled"
-  ## the same name in two lineages (e.g. "Proliferating" in Immune and in Stroma) -> "Proliferating (Immune)"
-  lin <- ifelse(is.na(m$lineage), "NA", as.character(m$lineage))
-  multi <- tapply(lin, m$label, function(v) length(unique(v)) > 1)
-  multi <- names(multi)[multi]
-  if (length(multi)) {
-    i <- m$label %in% multi
-    m$label[i] <- paste0(m$label[i], " (", lin[i], ")")
-    message("Labels used in more than one lineage, split by lineage: ", paste(multi, collapse = ", "))
-  }
   m$compartment <- dplyr::case_when(m$lineage %in% EPI_LINEAGES ~ "Epithelium",
                                     m$lineage %in% IMMUNE_LINEAGES ~ "Immune",
                                     m$lineage %in% STROMA_LINEAGES ~ "Stroma", TRUE ~ "Other")
   m$class <- uc_classes(m$label)
+  ## the cell type label decides the compartment when it is unambiguous: a cluster labelled
+  ## Plasma_cell / Neutrophil inside the stroma (or epithelial) group of 04 is counted as immune
+  cls_comp <- c(Eosinophil = "Immune", Neutrophil = "Immune", Mast = "Immune", Plasma = "Immune",
+                Inflam_mono_mac = "Immune", IFN_macrophage = "Immune", Macrophage = "Immune", DC = "Immune",
+                T_cell = "Immune", NK_ILC = "Immune", B_cell = "Immune",
+                Inflamed_epi = "Epithelium", Regenerative = "Epithelium", Paneth = "Epithelium", Pyloric = "Epithelium",
+                Stem_TA = "Epithelium", Goblet = "Epithelium", BEST4 = "Epithelium", EEC = "Epithelium",
+                Tuft = "Epithelium", Colonocyte = "Epithelium",
+                Inflam_fibroblast = "Stroma", Smooth_muscle = "Stroma", Fibroblast = "Stroma", Endothelial = "Stroma")
+  new_comp <- ifelse(is.na(m$class), m$compartment, cls_comp[m$class])
+  moved <- new_comp != m$compartment
+  if (any(moved)) {
+    mv <- table(paste0(m$label[moved], " (", m$compartment[moved], " -> ", new_comp[moved], ")"))
+    message("Compartment taken from the cell type label for ", format(sum(moved), big.mark = ","), " cells: ",
+            paste(sprintf("%s: %s", names(mv), format(as.integer(mv), big.mark = ",")), collapse = "; "))
+    m$compartment <- new_comp
+  }
+  ## a name still used in two compartments (e.g. "Proliferating" in Immune and in Stroma)
+  ## -> "Proliferating (Immune)", "Proliferating (Stroma)"
+  multi <- tapply(m$compartment, m$label, function(v) length(unique(v)) > 1)
+  multi <- names(multi)[multi]
+  if (length(multi)) {
+    i <- m$label %in% multi
+    m$label[i] <- paste0(m$label[i], " (", m$compartment[i], ")")
+    message("Labels used in more than one compartment, split by compartment: ", paste(multi, collapse = ", "))
+  }
   if (!"patient_id" %in% colnames(m)) m$patient_id <- m$core_id
   m$patient_id <- as.character(m$patient_id)
   m$patient_id[is.na(m$patient_id) | !nzchar(m$patient_id)] <- m$core_id[is.na(m$patient_id) | !nzchar(m$patient_id)]
