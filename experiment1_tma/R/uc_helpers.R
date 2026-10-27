@@ -19,6 +19,9 @@ UC_NANCY_COL     <- get0("UC_NANCY_COL", ifnotfound = NULL)       # NULL = Nancy
 UC_NANCY_HIGH_MIN <- get0("UC_NANCY_HIGH_MIN", ifnotfound = 2)    # Nancy >= 2 = "high" (active), 0-1 = "low"
 UC_LABEL_COL     <- get0("UC_LABEL_COL", ifnotfound = "cell_type")
 UC_MIN_DENOM     <- get0("UC_MIN_DENOM", ifnotfound = 20)         # a % per core needs this many cells below the line
+## cores left out of all UC analyses (matched, ignoring case, in organ / tissue_type / diagnosis of
+## tma_map.csv); character(0) keeps everything
+UC_EXCLUDE_ORGANS <- get0("UC_EXCLUDE_ORGANS", ifnotfound = c("tonsil"))
 ## clinical columns: outcomes compared per patient, Nancy columns compared with Nancy_TMA,
 ## eosinophil columns compared with the eosinophils counted on the TMA
 UC_OUTCOME_COLS  <- get0("UC_OUTCOME_COLS", ifnotfound = c("Disease.Control", "HistoEndoscopic.Remission",
@@ -57,6 +60,17 @@ uc_cell_table <- function(xen, label_col = UC_LABEL_COL) {
   if (!label_col %in% colnames(m)) stop("Label column '", label_col, "' not in the object -- run 04 first ",
                                         "(or set UC_LABEL_COL in config.R).")
   m <- m[!is.na(m$core_id), ]
+  ## control cores (e.g. tonsil) are annotated in 04 but left out of the UC analyses
+  if (length(UC_EXCLUDE_ORGANS) && any(nzchar(UC_EXCLUDE_ORGANS))) {
+    txt <- tolower(paste(m$organ %||% "", m$tissue_type %||% "", m$diagnosis %||% ""))
+    out <- grepl(paste(tolower(UC_EXCLUDE_ORGANS[nzchar(UC_EXCLUDE_ORGANS)]), collapse = "|"), txt)
+    if (any(out)) {
+      message("Left out (UC_EXCLUDE_ORGANS = ", paste(UC_EXCLUDE_ORGANS, collapse = ", "), "): ",
+              length(unique(m$core_id[out])), " cores, ", format(sum(out), big.mark = ","), " cells -- ",
+              paste(utils::head(sort(unique(m$core_id[out])), 10), collapse = ", "))
+      m <- m[!out, ]
+    }
+  }
   m$label <- as.character(m[[label_col]])
   m$label[is.na(m$label) | !nzchar(m$label)] <- "unlabelled"
   m$compartment <- dplyr::case_when(m$lineage %in% EPI_LINEAGES ~ "Epithelium",
