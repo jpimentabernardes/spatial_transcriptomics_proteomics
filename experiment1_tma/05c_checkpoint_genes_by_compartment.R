@@ -41,6 +41,13 @@ source("R/annotation_helpers.R")
 
 CHECKPOINT_GENES <- get0("CHECKPOINT_GENES", ifnotfound = c(PDCD1 = "PDCD1", CD274 = "CD274", CD56 = "NCAM1",
                                                             CD8A = "CD8A", CD8B = "CD8B"))
+## extra genes: EXP1_05C_GENES=CX3CR1,IFNG,IL6 (or CHECKPOINT_EXTRA_GENES in config.R), added to the
+## list above (genes already in it are skipped); each gets its own columns in the punch file
+extra <- trimws(unlist(strsplit(Sys.getenv("EXP1_05C_GENES", paste(get0("CHECKPOINT_EXTRA_GENES", ifnotfound = ""),
+                                                                   collapse = ",")), ",")))
+extra <- unique(toupper(extra[nzchar(extra)]))
+extra <- extra[!extra %in% toupper(CHECKPOINT_GENES)]
+if (length(extra)) CHECKPOINT_GENES <- c(CHECKPOINT_GENES, stats::setNames(extra, extra))
 CHECKPOINT_MIN_COUNTS <- get0("CHECKPOINT_MIN_COUNTS", ifnotfound = 1)
 CHECKPOINT_LABEL_COL  <- get0("CHECKPOINT_LABEL_COL", ifnotfound = NULL)
 COMPARTMENTS_CSV <- get0("COMPARTMENTS_CSV", ifnotfound = file.path(CONFIG_DIR, "compartments.csv"))

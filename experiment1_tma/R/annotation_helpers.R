@@ -170,6 +170,9 @@ add_site_and_tumour <- function(xen, families_csv) {
   site[!is.na(site) & !nzchar(trimws(site))] <- NA
   xen$site <- site
   tum <- tumour_slides()
+  ## slides.csv of another run (e.g. the UC slides): fall back to the slide names ("TMA_TUMOR")
+  if (!any(unique(xen$slide_id) %in% read_slides()$slide_id))
+    tum <- unique(xen$slide_id[grepl("tum", tolower(xen$slide_id))])
   xen$is_tumour <- xen$slide_id %in% tum
   message("Tumour slide(s): ", paste(tum, collapse = ", "), "  (from config/slides.csv)")
   print(table(slide = xen$slide_id, tumour = xen$is_tumour))
