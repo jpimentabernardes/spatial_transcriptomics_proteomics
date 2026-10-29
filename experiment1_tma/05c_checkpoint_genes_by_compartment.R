@@ -69,6 +69,8 @@ miss <- names(genes)[!genes %in% rownames(xen[["Xenium"]])]
 if (length(miss)) message("Not on the panel (left out): ", paste(sprintf("%s (%s)", miss, genes[miss]), collapse = ", "))
 genes <- genes[!names(genes) %in% miss]
 if (!length(genes)) stop("None of the checkpoint genes is on the panel.")
+message("Genes in this run (", length(genes), "): ", paste(names(genes), collapse = ", "),
+        if (!length(extra)) "  -- no extra genes (set EXP1_05C_GENES=IFNG,IL6,...)" else "")
 
 label_col <- CHECKPOINT_LABEL_COL %||%
   (if ("cell_type_organ_all" %in% colnames(xen[[]])) "cell_type_organ_all" else "cell_type")
