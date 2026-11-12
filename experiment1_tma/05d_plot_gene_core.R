@@ -12,7 +12,8 @@
 ## found, the cores of the slide are listed.
 ##
 ## INPUT : xenium_<seg>_annotated.rds (or _cores.rds if there is no annotated object)
-## OUTPUT: figures/05d_<gene>_<core>.png  (and _zoom.png: the densest 300 um window)
+## OUTPUT: figures/05d_<gene>_<core>.png  (and _zoom.png: the ZOOM_UM window with most positive cells)
+## Dot size / zoom: EXP1_05D_DOT=0.4 (smaller dots), EXP1_05D_ZOOM_UM=800 (wider zoom)
 ## =============================================================================
 
 source("config/config.R")
@@ -22,6 +23,8 @@ args <- commandArgs(trailingOnly = TRUE)
 if (length(args) < 2) stop('Usage: Rscript 05d_plot_gene_core.R <GENE> "<core>" [slide_id]')
 GENE <- args[1]; CORE <- args[2]; SLIDE <- if (length(args) >= 3) args[3] else NA
 DAPI_BLUE <- "#2F6BFF"
+DOT_SCALE <- as.numeric(Sys.getenv("EXP1_05D_DOT", "0.55"))     # dot width as a fraction of the cell (1 = full cell)
+ZOOM_UM   <- as.numeric(Sys.getenv("EXP1_05D_ZOOM_UM", "600"))  # side of the zoom window
 
 f <- obj_path("annotated"); if (!file.exists(f)) f <- obj_path("cores")
 message("Object: ", f)
@@ -61,12 +64,12 @@ plot_core <- function(d, panel_in, title, subtitle) {
   ext <- max(diff(range(d$x_um)), diff(range(d$y_um)), 50)
   area <- if ("cell_area" %in% colnames(d)) d$cell_area else NA
   diam <- ifelse(is.na(area) | area <= 0, 10, 2 * sqrt(area / pi))
-  d$size <- pmax(0.15, pmin(diam, 25) * panel_in * 25.4 / ext / 0.75)
+  d$size <- pmax(0.05, DOT_SCALE * pmin(diam, 25) * panel_in * 25.4 / ext / 0.75)
   pos <- d[d$expr > 0, ]; pos <- pos[order(pos$expr), ]
   bar <- if (ext > 600) 200 else if (ext > 200) 100 else 50
   ggplot(mapping = aes(x_um, y_um)) +
     geom_point(data = d, aes(size = size), colour = DAPI_BLUE, alpha = 0.75, stroke = 0) +
-    geom_point(data = pos, aes(size = size * 1.25, colour = pmin(expr, 5)), stroke = 0) +
+    geom_point(data = pos, aes(size = size * 1.4, colour = pmin(expr, 5)), stroke = 0) +
     scale_colour_gradientn(colours = c("#FFD000", "#FFF080", "#FFFFFF"), limits = c(1, 5), breaks = 1:5,
                            labels = c("1", "2", "3", "4", "5+"), name = paste(g, "\ntranscripts\nper cell")) +
     scale_size_identity() + scale_y_reverse() + coord_fixed() + theme_void(base_size = 12) +
@@ -88,8 +91,8 @@ sub <- sprintf("blue = all cells (%s)  |  yellow -> white = %s+ cells (%d of %d,
 tag <- paste0("05d_", make.names(g), "_", make.names(cid))
 save_fig(plot_core(d, 9, sprintf("%s  -  core %s  (%s)", g, cid, d$slide_id[1]), sub), tag, width = 11, height = 10, dpi = 300)
 
-## zoom: the 300 um window with the most positive cells (or the densest one)
-w <- 300
+## zoom: the ZOOM_UM window with the most positive cells (or the densest one)
+w <- ZOOM_UM
 if (diff(range(d$x_um)) > 1.5 * w) {
   b <- paste(floor(d$x_um / (w / 2)), floor(d$y_um / (w / 2)))
   score <- tapply(d$expr > 0, b, sum) + 1e-3 * tapply(rep(1, nrow(d)), b, sum)
