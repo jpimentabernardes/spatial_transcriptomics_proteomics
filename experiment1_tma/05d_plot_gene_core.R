@@ -184,6 +184,7 @@ if (diff(range(d$x_um)) > 1.5 * w) {
 ## ---------------------------------------------------------------------------
 QV_CUTS <- as.numeric(trimws(strsplit(Sys.getenv("EXP1_05D_QV", "0,20,30"), ",")[[1]]))
 ALL_TX <- Sys.getenv("EXP1_05D_ALL_TX", "0") %in% c("1", "TRUE", "true", "yes")
+TX_DOT <- as.numeric(Sys.getenv("EXP1_05D_TX_DOT", "1.6"))   # molecule dot size, x the original (1 = smallest)
 tx_file <- if (have_xdir) file.path(xdir, "transcripts.parquet") else ""
 read_tx <- function(x0, y0, x1, y1, gene = NULL) {
   suppressPackageStartupMessages(library(arrow))
@@ -232,7 +233,7 @@ if (have_xdir && file.exists(tx_file) && requireNamespace("arrow", quietly = TRU
   message(sprintf("%s molecules in the core window: %s (qv >= 20: %s)", g, format(nrow(tx), big.mark = ","),
                   format(sum(tx$qv >= 20), big.mark = ",")))
   n_q <- length(QV_CUTS)
-  save_fig(plot_molecules(bg, tx, NULL, win, sprintf("%s RNA molecules  -  core %s  (%s)", g, cid, d$slide_id[1]), 0.35),
+  save_fig(plot_molecules(bg, tx, NULL, win, sprintf("%s RNA molecules  -  core %s  (%s)", g, cid, d$slide_id[1]), 0.35 * TX_DOT),
            paste0(tag, "_molecules"), width = 8.5 * n_q, height = 9.5, dpi = 300)
   if (exists("cx")) {
     zw <- c(cx - w / 2, cy - w / 2, cx + w / 2, cy + w / 2)
@@ -243,7 +244,7 @@ if (have_xdir && file.exists(tx_file) && requireNamespace("arrow", quietly = TRU
       others <- others[others$feature_name != g & !grepl("^(NegControl|BLANK|Unassigned|Deprecated|antisense|Intergenic)",
                                                          others$feature_name, ignore.case = TRUE), ]
     }
-    save_fig(plot_molecules(bz, tz, others, zw, sprintf("%s RNA molecules  -  core %s, %d um zoom", g, cid, w), 0.9),
+    save_fig(plot_molecules(bz, tz, others, zw, sprintf("%s RNA molecules  -  core %s, %d um zoom", g, cid, w), 0.9 * TX_DOT),
              paste0(tag, "_molecules_zoom"), width = 8.5 * n_q, height = 9.5, dpi = 300)
   }
 }
