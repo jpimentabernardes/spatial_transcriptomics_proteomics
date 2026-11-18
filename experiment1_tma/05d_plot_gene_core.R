@@ -15,6 +15,7 @@
 ## OUTPUT: figures/05d_<gene>_<core>.png  (and _zoom.png: the ZOOM_UM window with most positive cells)
 ##         figures/05d_<gene>_<core>_molecules(_zoom).png: the RNA molecules themselves, per qv cut-off
 ## Dot size / zoom: EXP1_05D_DOT=0.4 (smaller dots), EXP1_05D_ZOOM_UM=800 (wider zoom)
+## Whole-core window: EXP1_05D_PAD=300 (more tissue around the core; default 150 um, square, centred)
 ## =============================================================================
 
 source("config/config.R")
@@ -156,8 +157,14 @@ stain_txt <- c(none = "blue = all cells", dapi = "blue = DAPI", "dapi+boundary" 
 sub <- sprintf("%s  |  yellow -> white = %s+ cells (%d of %d, %.1f%%)", stain_txt, g,
                sum(d$expr > 0), nrow(d), 100 * mean(d$expr > 0))
 tag <- paste0("05d_", make.names(g), "_", make.names(cid))
-pad <- 20
-bg <- get_bg(min(d$x_um) - pad, min(d$y_um) - pad, max(d$x_um) + pad, max(d$y_um) + pad, tag)
+## whole-core window: a square centred on the core's cells, PAD um wider on every side
+## (EXP1_05D_PAD, default 150), so tissue just outside the cells assigned to the core
+## (torn edges, unassigned pieces) is shown instead of being cut off
+pad <- as.numeric(Sys.getenv("EXP1_05D_PAD", "150"))
+half <- max(diff(range(d$x_um)), diff(range(d$y_um))) / 2 + pad
+ccx <- mean(range(d$x_um)); ccy <- mean(range(d$y_um))
+win <- c(ccx - half, ccy - half, ccx + half, ccy + half)
+bg <- get_bg(win[1], win[2], win[3], win[4], tag)
 save_fig(plot_core(d, 9, sprintf("%s  -  core %s  (%s)", g, cid, d$slide_id[1]), sub, bg), tag,
          width = 11, height = 10, dpi = 300)
 
@@ -228,7 +235,6 @@ if (have_xdir && !file.exists(tx_file)) message("!! No transcripts.parquet in ",
 if (have_xdir && file.exists(tx_file) && !requireNamespace("arrow", quietly = TRUE))
   message("!! R package 'arrow' not installed -- no molecule plots.")
 if (have_xdir && file.exists(tx_file) && requireNamespace("arrow", quietly = TRUE)) {
-  win <- c(min(d$x_um) - pad, min(d$y_um) - pad, max(d$x_um) + pad, max(d$y_um) + pad)
   tx <- read_tx(win[1], win[2], win[3], win[4], g)
   message(sprintf("%s molecules in the core window: %s (qv >= 20: %s)", g, format(nrow(tx), big.mark = ","),
                   format(sum(tx$qv >= 20), big.mark = ",")))
